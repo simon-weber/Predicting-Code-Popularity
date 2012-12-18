@@ -4,27 +4,28 @@ This was a final project of mine for a data mining course in Fall 2012. Basicall
 
 My most interesting result was that highly popular repos (350+ stars) can be differentiated from unpopular ones (3-10 stars) quite well *solely* by looking at relative occurence of AST nodes.
 
-There are more details in my paper:
+Here are links to the report from this project:
 
-* final writeup: [Google Doc](https://docs.google.com/document/d/1MBNpGsrt1jIqcLqxFWOW7m_7j1zvouTu3uyqlfLn7EQ/edit)
-* final data: [Google Spreadsheet](https://docs.google.com/spreadsheet/ccc?key=0ArbW86SpnfA8dHhBcGVybEZFZ3pfd3lZb0w0Nm1WVWc)
+* writeup: [link](https://docs.google.com/document/d/1MBNpGsrt1jIqcLqxFWOW7m_7j1zvouTu3uyqlfLn7EQ/edit)
+* some data: [link](https://docs.google.com/spreadsheet/ccc?key=0ArbW86SpnfA8dHhBcGVybEZFZ3pfd3lZb0w0Nm1WVWc)
+* presentation deck: [link](https://docs.google.com/presentation/d/1fLpDloip89rVf-rlnQX0-SKhvSUr4W98pqxCpjVsvUQ/edit)
 
 ## Running everything
 
-The code is far from elegant, but it gets the job done. First, grab the database of repos: [Google Drive](https://docs.google.com/open?id=0B7bW86SpnfA8Wk1GcmF2R1JtN1E). This is an sqlite db, and should be named 'erepo.db' and placed in the root of the repo.
+The code is far from elegant, but it gets the job done. First, grab the database of repos: [Google Drive](https://docs.google.com/open?id=0B7bW86SpnfA8Wk1GcmF2R1JtN1E). This is an sqlite db, and should be named `erepo.db` and placed in the root of the repo.
 
-Before running any code, you'll need some dependencies. Create a new venv, then run `pip install -r requirements.txt` to get them.
+Before running any code, you'll need some dependencies. Create a new venv (you might consider using site-global packages, if you've got numpy or scikit installed), then run `pip install -r requirements.txt` to get them.
 
-Next, you need to pick your sample size. Edit choose_sample.py as you please (you have to download every repo in the sample, so you probably want to keep it small), then run the script. This creates the classes.py file, which you could then edit if you want (maybe to manually add your own repo).
+Next, you need to pick your sample size. Edit `choose_sample.py` as you please (you have to download every repo in the sample, so you probably want to keep it small), then run the script. This creates the `classes.py` file, which you could then edit if you want (maybe to manually add your own repo).
 
-Next is feature calculation, by running featurecalc.py. This can take a while, and when finished creates features.pickle.
+Next is feature calculation, by running `featurecalc.py`. This can take a while, and when finished creates `features.pickle`.
 
-Lastly, you can build the classifier and see how it performs by using run_test.py. summarize_feature_data.py is something else to try; it shows you the min/max/median/mean/std of all features you calculated.
+Lastly, you can build the classifier and see how it performs by using `run_test.py`. `summarize_feature_data.py` is something else to try; it shows you the min/max/median/mean/std of all features you calculated.
 
 ## Notes
-If you want to watch feature calculation progress, you can tail calcfeatures.log.
+If you want to watch feature calculation progress, you can tail `calcfeatures.log`.
 
-I probably won't edit this or update this code, but feel free to contact me if you have questions!
+I probably won't update this code, but feel free to contact me if you have questions!
 
 
 - - -

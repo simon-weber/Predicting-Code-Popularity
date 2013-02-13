@@ -1,6 +1,10 @@
 #Predicting the Popularity of Code
 
-This was a final project of mine for a data mining course in Fall 2012. Basically, I wanted to see if I could tell popular projects from unpopular ones, and if so, what the differences were. I only looked at Python repos on GitHub (quick shoutout to the GitHub team, who kindly provided a custom db dump for me).
+I'm currently working on extending this project by (hopefully) extracting more useful knowledge and improving accuracy. It's based on a final project of mine for a data mining course in Fall 2012. The original description is below:
+
+- - -
+
+Basically, I wanted to see if I could tell popular projects from unpopular ones, and if so, what the differences were. I only looked at Python repos on GitHub (quick shoutout to the GitHub team, who kindly provided a custom db dump for me).
 
 My most interesting result was that highly popular repos (350+ stars) can be differentiated from unpopular ones (3-10 stars) quite well *solely* by looking at relative occurence of AST nodes.
 
@@ -25,10 +29,8 @@ Lastly, you can build the classifier and see how it performs by using `run_test.
 ## Notes
 If you want to watch feature calculation progress, you can tail `calcfeatures.log`.
 
-I probably won't update this code, but feel free to contact me if you have questions!
-
 
 - - -
 
-Copyright 2012 [Simon Weber](http://www.simonmweber.com). 
+Copyright 2013 [Simon Weber](http://www.simonmweber.com). 
 All code licensed under the MIT license.

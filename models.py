@@ -1,16 +1,63 @@
 """This file contains the schema for the abandoned elaborated-repo sqlite
 database. It is still used when choosing a new random sample."""
 
-import collections
-
 from base64 import b64encode, b64decode
+import collections
 import cPickle as pickle
 
+import msgpack
 from peewee import SqliteDatabase, Model
 from peewee import BooleanField, DateTimeField, IntegerField, TextField
+from recordtype import recordtype
+
+from features import all_features
 
 erepo_db = SqliteDatabase('erepo.db', threadlocals=True)
 erepo_db.connect()
+
+
+def _PackableRecordtype():
+    """Mixin to recordtypes to enable msgpacking."""
+
+    #TODO make these aware of a current snapshot/sample
+    @classmethod
+    def load_all(cls, filepath):
+        with open(filepath, 'rb') as f:
+            records = msgpack.load(f, object_hook=cls._loader)
+
+        return records
+
+    @classmethod
+    def write_out(cls, records, filepath):
+        with open(filepath, 'wb') as f:
+            msgpack.dump(records, f, default=cls._dumper)
+
+    @classmethod
+    def _loader(cls, obj):
+        if "__%s__" % cls.__name__ in obj:
+            obj = cls(**obj['as_dict'])
+        return obj
+
+    @classmethod
+    def _dumper(cls, obj):
+        if isinstance(obj, cls):
+            return {
+                ("__%s__" % cls.__name__): True,
+                'as_dict': obj._asdict()
+            }
+        return obj
+
+
+_FRepo = recordtype(
+    'FRepo',
+    ['name'] + [fname for fname in all_features],
+    default=None  # None signals an uncalculated feature
+)
+
+
+class FRepo(_FRepo, _PackableRecordtype):
+    """A _F_eature repo stores calculated features for some repo."""
+    pass
 
 
 class YMD(collections.namedtuple('YMD', 'year month day')):
@@ -23,46 +70,48 @@ class YMD(collections.namedtuple('YMD', 'year month day')):
         return YMD(date.year, date.month, date.day)
 
 
-class GRepo(collections.namedtuple('GRepo',
-                                   ['name',  # in 'user/repo' format
-                                    'stars',
-                                    'fetch_ymd',  # YMD
-                                    # these are all GitHub apiv3 names:
-                                    'clone_url',
-                                    'created_at',
-                                    'description',
-                                    'fork',
-                                    'forks',
-                                    'git_url',
-                                    'has_downloads',
-                                    'has_issues',
-                                    'has_wiki',
-                                    'homepage',
-                                    'html_url',
-                                    'id',
-                                    'language',
-                                    'master_branch',
-                                    'open_issues',
-                                    'private',
-                                    'pushed_at',
-                                    'size',
-                                    'ssh_url',
-                                    'svn_url',
-                                    'updated_at',
-                                    'url',
-                                    ])
-            ):
-    """A _G_itHub _r_epo stores a snapshot of GitHub repo metadata retrieved from
-    http://developer.github.com/v3/repos/#get on some date."""
+_GRepo = recordtype('GRepo',
+                    ['name',  # in 'user/repo' format
+                     'stars',
+                     'fetch_ymd',  # YMD of data acquisition
+                     # these are all GitHub apiv3 names:
+                     'clone_url',
+                     'created_at',
+                     'description',
+                     'fork',
+                     'forks',
+                     'git_url',
+                     'has_downloads',
+                     'has_issues',
+                     'has_wiki',
+                     'homepage',
+                     'html_url',
+                     'id',
+                     'language',
+                     'master_branch',
+                     'open_issues',
+                     'private',
+                     'pushed_at',
+                     'size',
+                     'ssh_url',
+                     'svn_url',
+                     'updated_at',
+                     'url',
+                     ])
 
-    __slots__ = ()
+
+class GRepo(_GRepo, _PackableRecordtype):
+    """A _G_itHub repo stores a snapshot of GitHub repo metadata retrieved from
+    `http://developer.github.com/v3/repos/#get` on some date."""
 
     def __str__(self):
         return self.name.encode('utf-8')
 
+    @property
     def username(self):
         self.name.split('/')[0]
 
+    @property
     def reponame(self):
         self.name.split('/')[1]
 

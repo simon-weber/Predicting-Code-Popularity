@@ -9,10 +9,8 @@ import tarfile
 from tempfile import NamedTemporaryFile
 import urllib  # I'm as surprised as you are, this was easiest
 
-import pep8
-
 from config import feature_pickle_name, repo_dir
-from sample import repos
+#from sample import repos
 
 
 class cd:
@@ -113,20 +111,20 @@ def FaultTolerantFile(name):
         os.replace(f.name, name)
 
 
-def load_f_dicts(merge_new=True):
-    try:
-        with open(feature_pickle_name, 'rb') as f:
-            f_dicts = pickle.load(f)
-    except IOError:
-        logging.warning('unable to load f_dicts; using empty collection')
-        f_dicts = {user_repo: {} for user_repo in repos}
-
-    if merge_new:
-        for user_repo in repos:
-            if user_repo not in f_dicts:
-                f_dicts[user_repo] = {}
-
-    return f_dicts
+#def load_f_dicts(merge_new=True):
+#    try:
+#        with open(feature_pickle_name, 'rb') as f:
+#            f_dicts = pickle.load(f)
+#    except IOError:
+#        logging.warning('unable to load f_dicts; using empty collection')
+#        f_dicts = {user_repo: {} for user_repo in repos}
+#
+#    if merge_new:
+#        for user_repo in repos:
+#            if user_repo not in f_dicts:
+#                f_dicts[user_repo] = {}
+#
+#    return f_dicts
 
 
 def persist_f_dicts(f_dicts):
@@ -146,11 +144,11 @@ def create_bimap(els):
     return (forward, backward)
 
 
-def get_pep8_errors(repo_path):
-    """Return the number of pep8 errors + warnings for some repo."""
-
-    style_checker = pep8.StyleGuide(quiet=True,
-                                    parse_argv=False,
-                                    config_file=False)
-
-    return style_checker.check_files([repo_path]).get_count()
+#def get_pep8_errors(repo_path):
+#    """Return the number of pep8 errors + warnings for some repo."""
+#
+#    style_checker = pep8.StyleGuide(quiet=True,
+#                                    parse_argv=False,
+#                                    config_file=False)
+#
+#    return style_checker.check_files([repo_path]).get_count()

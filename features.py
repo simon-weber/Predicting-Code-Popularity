@@ -19,7 +19,9 @@ from config import repo_dir
 import utils
 
 
-all_features = {}    # {'feature name': Feature} for outside the module
+# {'feature name': Feature} for outside the module.
+# serialization assumes that features will not be removed once added
+all_features = {}
 
 
 class _RegisterMeta(type):

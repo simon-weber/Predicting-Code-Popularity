@@ -16,35 +16,56 @@ erepo_db = SqliteDatabase('erepo.db', threadlocals=True)
 erepo_db.connect()
 
 
-def _PackableRecordtype():
-    """Mixin to recordtypes to enable msgpacking."""
+class _SerializableAsDictMeta(type):
+    """Set as metaclass to use type()._asdict as serialization data.
+    
+    This keeps a record of classes for which it is the metaclass, and 
+    exposes `load` and `dump` which can serialize all of them."""
+
+    def __new__(cls, name, bases, dct):
+        dct['load'] = cls.load
+        dct['dump'] = cls.dump
+        c = super(_SerializableAsDictMeta, cls).__new__(cls, name, bases, dct)
+
+        #Subclasses get registered so we know how to pack/unpack them.
+        classes = getattr(cls, '_reg_classes', set())
+        classes.add(c)
+
+        cls._names = {"%s" % reg.__name__: reg for reg in classes}
+        cls._reg_classes = classes
+
+        return c
+
 
     #TODO make these aware of a current snapshot/sample
     @classmethod
-    def load_all(cls, filepath):
+    def load(cls, filepath):
         with open(filepath, 'rb') as f:
             records = msgpack.load(f, object_hook=cls._loader)
 
         return records
 
     @classmethod
-    def write_out(cls, records, filepath):
+    def dump(cls, records, filepath):
         with open(filepath, 'wb') as f:
             msgpack.dump(records, f, default=cls._dumper)
 
     @classmethod
     def _loader(cls, obj):
-        if "__%s__" % cls.__name__ in obj:
-            obj = cls(**obj['as_dict'])
+        reg_class = cls._names.get(obj.get('__cls__'))
+        if reg_class:
+            return reg_class(**obj['as_dict'])
+
         return obj
 
     @classmethod
     def _dumper(cls, obj):
-        if isinstance(obj, cls):
+        if obj.__class__ in cls._reg_classes:
             return {
-                ("__%s__" % cls.__name__): True,
+                "__cls__": obj.__class__.__name__,
                 'as_dict': obj._asdict()
             }
+
         return obj
 
 
@@ -55,14 +76,20 @@ _FRepo = recordtype(
 )
 
 
-class FRepo(_FRepo, _PackableRecordtype):
+class FRepo(_FRepo):
     """A _F_eature repo stores calculated features for some repo."""
-    pass
+    __metaclass__ = _SerializableAsDictMeta
 
 
-class YMD(collections.namedtuple('YMD', 'year month day')):
+_YMD = recordtype(
+    'YMD',
+    'year month day'
+)
+
+class YMD(_YMD):
     """Same purpose as datetime.date, but small and serializable."""
-    __slots__ = ()
+
+    __metaclass__ = _SerializableAsDictMeta
 
     @staticmethod
     def from_date(date):
@@ -100,9 +127,13 @@ _GRepo = recordtype('GRepo',
                      ])
 
 
-class GRepo(_GRepo, _PackableRecordtype):
+class GRepo(_GRepo):
     """A _G_itHub repo stores a snapshot of GitHub repo metadata retrieved from
-    `http://developer.github.com/v3/repos/#get` on some date."""
+    `http://developer.github.com/v3/repos/#get` on some date.
+    
+    Note that strings will be encoded as utf8 after a dump/load cycle."""
+
+    __metaclass__ = _SerializableAsDictMeta
 
     def __str__(self):
         return self.name.encode('utf-8')

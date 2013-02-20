@@ -2,7 +2,6 @@
 database. It is still used when choosing a new random sample."""
 
 from base64 import b64encode, b64decode
-import collections
 import cPickle as pickle
 
 import msgpack
@@ -10,34 +9,55 @@ from peewee import SqliteDatabase, Model
 from peewee import BooleanField, DateTimeField, IntegerField, TextField
 from recordtype import recordtype
 
-from features import all_features
+from features import all_features as real_features
+from features import _support_features
+
+all_features = dict(real_features.items() + _support_features.items())
 
 erepo_db = SqliteDatabase('erepo.db', threadlocals=True)
 erepo_db.connect()
 
 
-class _SerializableAsDictMeta(type):
-    """Set as metaclass to use type()._asdict as serialization data.
-    
-    This keeps a record of classes for which it is the metaclass, and 
-    exposes `load` and `dump` which can serialize all of them."""
+class _Serializable(object):
+    """Mixin to support serialization of a custom class.
+
+    By default, recordtype._asdict is used."""
+
+    __slots__ = ()
+
+    @classmethod
+    def _pack(cls, obj):
+        return obj._asdict()
+
+    @classmethod
+    def _unpack(cls, data):
+        return cls(**data)
+
+
+class _MsgpackMeta(type):
+    """Set on a class to enable serialization with msgpack.
+
+    _Serializable becomes a base, so classes can override _un/pack."""
 
     def __new__(cls, name, bases, dct):
+        #Insert our methods.
         dct['load'] = cls.load
         dct['dump'] = cls.dump
-        c = super(_SerializableAsDictMeta, cls).__new__(cls, name, bases, dct)
+        bases = bases + (_Serializable,)
+
+        c = super(_MsgpackMeta, cls).__new__(cls, name, bases, dct)
 
         #Subclasses get registered so we know how to pack/unpack them.
-        classes = getattr(cls, '_reg_classes', set())
+        classes = getattr(_MsgpackMeta, '_reg_classes', set())
         classes.add(c)
 
-        cls._names = {"%s" % reg.__name__: reg for reg in classes}
-        cls._reg_classes = classes
+        _MsgpackMeta._names = {"%s" % reg.__name__: reg for reg in classes}
+        _MsgpackMeta._reg_classes = classes
 
         return c
 
-
     #TODO make these aware of a current snapshot/sample
+    #load/dump are the user interface - they can handle all registered classes
     @classmethod
     def load(cls, filepath):
         with open(filepath, 'rb') as f:
@@ -50,20 +70,22 @@ class _SerializableAsDictMeta(type):
         with open(filepath, 'wb') as f:
             msgpack.dump(records, f, default=cls._dumper)
 
+    #behind the scenes, _loader and _dumper do the work
     @classmethod
     def _loader(cls, obj):
         reg_class = cls._names.get(obj.get('__cls__'))
         if reg_class:
-            return reg_class(**obj['as_dict'])
+            return reg_class._unpack(obj['data'])
 
         return obj
 
     @classmethod
     def _dumper(cls, obj):
         if obj.__class__ in cls._reg_classes:
+            reg_cls = obj.__class__
             return {
-                "__cls__": obj.__class__.__name__,
-                'as_dict': obj._asdict()
+                "__cls__": reg_cls.__name__,
+                'data': reg_cls._pack(obj)
             }
 
         return obj
@@ -71,14 +93,35 @@ class _SerializableAsDictMeta(type):
 
 _FRepo = recordtype(
     'FRepo',
-    ['name'] + [fname for fname in all_features],
-    default=None  # None signals an uncalculated feature
+    (
+        ['name'] +  # name of repo
+        [fname for fname in all_features]
+    ),
+    default=None
 )
 
 
 class FRepo(_FRepo):
     """A _F_eature repo stores calculated features for some repo."""
-    __metaclass__ = _SerializableAsDictMeta
+    __metaclass__ = _MsgpackMeta
+
+    def __getattribute__(self, name):
+        """Intercept access to features to calculate on the fly."""
+        val = super(FRepo, self).__getattribute__(name)
+
+        if name in all_features and val is None:
+            val = all_features[name]._calculate()
+            setattr(self, name, val)
+
+        return val
+
+    @classmethod
+    def _pack(cls, obj):
+        """Don't write out support features."""
+        d = {k: v for (k, v) in obj._asdict()
+             if k not in _support_features}
+
+        return d
 
 
 _YMD = recordtype(
@@ -86,10 +129,11 @@ _YMD = recordtype(
     'year month day'
 )
 
+
 class YMD(_YMD):
     """Same purpose as datetime.date, but small and serializable."""
 
-    __metaclass__ = _SerializableAsDictMeta
+    __metaclass__ = _MsgpackMeta
 
     @staticmethod
     def from_date(date):
@@ -130,10 +174,10 @@ _GRepo = recordtype('GRepo',
 class GRepo(_GRepo):
     """A _G_itHub repo stores a snapshot of GitHub repo metadata retrieved from
     `http://developer.github.com/v3/repos/#get` on some date.
-    
+
     Note that strings will be encoded as utf8 after a dump/load cycle."""
 
-    __metaclass__ = _SerializableAsDictMeta
+    __metaclass__ = _MsgpackMeta
 
     def __str__(self):
         return self.name.encode('utf-8')

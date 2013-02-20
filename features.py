@@ -23,6 +23,8 @@ import utils
 # serialization assumes that features will not be removed once added
 all_features = {}
 
+_support_features = {}
+
 
 class _RegisterMeta(type):
     """This metaclass registers concrete features in all_features."""
@@ -34,6 +36,8 @@ class _RegisterMeta(type):
         base_names = [base.__name__ for base in bases]
         if 'Feature' in base_names and name != 'SupportOnlyFeature':
             all_features[name] = c
+        elif 'SupportOnlyFeature' in base_names:
+            _support_features[name] = c
 
         return c
 

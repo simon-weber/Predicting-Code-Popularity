@@ -117,148 +117,133 @@ class SupportOnlyFeature(Feature):
         cls.val = val
 
 
+#These decorators register a feature as normal/support.
+def feature(f):
+    all_features[f.__name__] = f
+    return f
+
+
+def support_feature(f):
+    _support_features[f.__name__] = f
+    return f
+
 # non-source files
+#features take a Repo and return their value.
+#they assume curdir is the repo's directory
 
 
-class AllFileSizes(SupportOnlyFeature):
+@support_feature
+def all_file_sizes(repo):
     """A map of {filepath: filesize} for all files in the repo."""
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        filesizes = {}
+    filesizes = {}
 
-        for dirpath, dirnames, filenames in os.walk('.'):
-            if '.git' in dirnames:
-                dirnames.remove('.git')  # don't enter git db
+    for dirpath, dirnames, filenames in os.walk('.'):
+        if '.git' in dirnames:
+            dirnames.remove('.git')  # don't enter git db
 
-            filepaths = (os.path.join(dirpath, fname) for fname in filenames)
-            filepaths = (path for path in filepaths if
-                         not os.path.islink(path))
+        filepaths = (os.path.join(dirpath, fname) for fname in filenames)
+        filepaths = (path for path in filepaths if
+                     not os.path.islink(path))
 
-            for f in filepaths:
-                filesizes[f] = os.path.getsize(f)
+        for f in filepaths:
+            filesizes[f] = os.path.getsize(f)
 
-        return filesizes
+    return filesizes
 
 
-class NumAllFiles(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return len(AllFileSizes._get_val(user_repo, features))
+@support_feature
+def src_file_sizes(repo):
+    return {f: size for (f, size) in repo.features.all_file_sizes.iteritems()
+            if f.endswith('.py')}
 
 
-class AllFilesSize(Feature):
+@feature
+def num_all_files(repo):
+    return len(repo.features.all_file_sizes)
+
+
+@feature
+def size_all_files(repo):
     """Total filesize of all files in the repo."""
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return sum(size for size in
-                   AllFileSizes._get_val(user_repo, features).itervalues())
+    return sum(size for size in repo.features.all_file_sizes.itervalues())
 
 
-class SrcFilesSize(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return sum(size for fname, size in
-                   AllFileSizes._get_val(user_repo, features).iteritems()
-                   if fname.endswith('.py'))
+@feature
+def size_src_files(repo):
+    return sum(size for fname, size in repo.features.src_file_sizes.iteritems())
 
 
-class NumSrcFiles(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return len(SourceFiles._get_val(user_repo, features))
+@feature
+def num_src_files(repo):
+    return len(repo.features.src_file_sizes)
 
 
-class SrcFileRatio(Feature):
+@feature
+def ratio_src_files(repo):
     """.py files / all files"""
-
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return 100.0 * \
-            NumSrcFiles._get_val(user_repo, features) / \
-            NumAllFiles._get_val(user_repo, features)
+    return 100.0 * repo.features.num_src_files / repo.features.num_all_files
 
 
-class SrcFileVolRatio(Feature):
+@feature
+def ratio_vol_src_files(repo):
     """size of .py files / size of all files"""
-
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return 100.0 * \
-            SrcFilesSize._get_val(user_repo, features) / \
-            AllFilesSize._get_val(user_repo, features)
+    return 100.0 * repo.features.size_src_files / repo.features.size_all_files
 
 
-class ReadmeSize(Feature):
+@feature
+def readme_size(repo):
     """Size of the readme, in bytes.
 
     0 can mean either non-existant or 0-length."""
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        matching = glob('*README*')
+    matching = glob('*README*')
 
-        if not matching:
-            return 0
+    if not matching:
+        return 0
 
-        #take the longest filename; hack to emulate GitHub's preference to
-        #README.md over README
-        readme_fn = max(matching, key=len)
+    #take the longest filename; hack to emulate GitHub's preference to
+    #eg README.md over README
+    readme_fn = max(matching, key=len)
 
-        return utils.filesize_or_zero(readme_fn)
+    return utils.filesize_or_zero(readme_fn)
 
 
-class SetupSize(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return utils.filesize_or_zero('setup.py')
+@feature
+def setuppy_size(repo):
+    return utils.filesize_or_zero('setup.py')
 
 
-class LicenseSize(Feature):
+@feature
+def license_size(repo):
     #TODO consider eg LICENSE.txt
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return max(utils.filesize_or_zero(fn) for fn in ('LICENSE', 'COPYING'))
+    return max(utils.filesize_or_zero(fn) for fn in ('LICENSE', 'COPYING'))
 
 
-class TravisCfgSize(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return utils.filesize_or_zero('.travis.yml')
+@feature
+def travis_cfg_size(repo):
+    return utils.filesize_or_zero('.travis.yml')
 
 
-class ContributingSize(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return utils.filesize_or_zero('CONTRIBUTING')
+@feature
+def contributing_size(repo):
+    return utils.filesize_or_zero('CONTRIBUTING')
 
 
 # Code features
 
-
-class SourceFiles(SupportOnlyFeature):
-    """A list of all .py files in the repo."""
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        return [f for f in
-                AllFileSizes._get_val(user_repo, features).iterkeys()
-                if f.endswith('.py')]
-
-
-class SourceContents(SupportOnlyFeature):
+@support_feature
+def source_contents(repo):
     """A dict {filename: contents} for all source files."""
+    contents = {}
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        contents = {}
+    for py_file, size in repo.features.src_file_sizes.iteritems():
+        try:
+            with open(py_file, 'rb') as f:
+                contents[py_file] = f.read()
+        except IOError:
+            logging.exception("could not open %s/%s", repo.name, py_file)
 
-        for py_file in SourceFiles._get_val(user_repo, features):
-            try:
-                with open(py_file, 'rb') as f:
-                    contents[py_file] = f.read()
-            except IOError:
-                logging.exception("could not open %s/%s", user_repo, py_file)
-
-        return contents
+    return contents
 
 
 # too costly to calculate for large samples
@@ -272,160 +257,139 @@ class SourceContents(SupportOnlyFeature):
 #        return 100.0 * errors / NumAstNodes._get_val(user_repo, features)
 
 
-class Asts(SupportOnlyFeature):
+@support_feature
+def asts(repo):
     """A dict {filename: ast} for all .py files."""
+    asts = {}
+    for src_fn, src in repo.features.source_contents.iteritems():
+        try:
+            ast = pyast.parse(src)
+        except:
+            #if their code does not compile, ignore it
+            #TODO should probably be more strict against this,
+            #could really throw off num_ast-relative features
+            #maybe don't consider repos with non-compiling code?
+            logging.exception("file %s/%s does not compile",
+                              repo.name, src_fn)
+        else:
+            #otherwise, include it
+            asts[src_fn] = ast
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        asts = {}
-        for src_fn, src in SourceContents._get_val(user_repo,
-                                                   features).iteritems():
-            try:
-                ast = pyast.parse(src)
-            except:
-                #if their code does not compile, ignore it
-                #TODO should probably be more strict against this,
-                #could really throw off num_ast-relative features
-                #maybe don't consider repos with non-compiling code?
-                logging.exception("file %s/%s does not compile",
-                                  user_repo, src_fn)
-            else:
-                #otherwise, include it
-                asts[src_fn] = ast
-
-        return asts
+    return asts
 
 
-class AstNodeCounts(SupportOnlyFeature):
-    """The counts of all ast nodes across all source."""
+@support_feature
+def ast_node_counts(repo):
+    """A counter over ast node names for all source."""
+    counter = Counter()
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        counter = Counter()
+    for ast in repo.features.asts.itervalues():
+        counter.update(node.__class__.__name__
+                       for node in pyast.walk(ast))
 
-        for ast in Asts._get_val(user_repo, features).itervalues():
-            counter.update(node.__class__.__name__
-                           for node in pyast.walk(ast))
-
-        return counter
+    return counter
 
 
-class NumAstNodes(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = sum(count for count in
-                    AstNodeCounts._get_val(user_repo, features).values())
-        nodes += 1  # used as relative, don't want 0
-        return nodes
+@feature
+def num_ast_nodes(repo):
+    """Total number of ast nodes; a measure of code volume."""
+    nodes = sum(count for count in repo.features.ast_node_counts.values())
+    nodes += 1  # used as relative, don't want 0
+    return nodes
 
 
-class WithUsage(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = AstNodeCounts._get_val(user_repo, features).get('With', 0)
-        return 100.0 * nodes / NumAstNodes._get_val(user_repo, features)
+#These features refer to usage of certain language features.
+@feature
+def with_stmt_usage(repo):
+    nodes = repo.features.ast_node_counts.get('With', 0)
+    return 100.0 * nodes / repo.features.num_ast_nodes
 
 
-class CompUsage(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = AstNodeCounts._get_val(user_repo, features).get(
-            'comprehension', 0)
-        return 100.0 * nodes / NumAstNodes._get_val(user_repo, features)
+@feature
+def compr_usage(repo):
+    nodes = repo.features.ast_node_counts.get('comprehension', 0)
+    return 100.0 * nodes / repo.features.num_ast_nodes
 
 
-class LambdaUsage(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = AstNodeCounts._get_val(user_repo, features).get('Lambda', 0)
-        return 100.0 * nodes / NumAstNodes._get_val(user_repo, features)
+@feature
+def lambda_usage(repo):
+    nodes = repo.features.ast_node_counts.get('Lambda', 0)
+    return 100.0 * nodes / repo.features.num_ast_nodes
 
 
-class GlobalUsage(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = AstNodeCounts._get_val(user_repo, features).get('Global', 0)
-        return 100.0 * nodes / NumAstNodes._get_val(user_repo, features)
+@feature
+def global_usage(repo):
+    nodes = repo.features.ast_node_counts.get('Global', 0)
+    return 100.0 * nodes / repo.features.num_ast_nodes
 
 
-class GenUsage(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = AstNodeCounts._get_val(user_repo, features).get(
-            'GeneratorExp', 0)
-        return 100.0 * nodes / NumAstNodes._get_val(user_repo, features)
+@feature
+def gen_exp_usage(repo):
+    nodes = repo.features.ast_node_counts.get('GeneratorExp', 0)
+    return 100.0 * nodes / repo.features.num_ast_nodes
 
 
-class PrintUsage(Feature):
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        nodes = AstNodeCounts._get_val(user_repo, features).get('Print', 0)
-        return 100.0 * nodes / NumAstNodes._get_val(user_repo, features)
+@feature
+def print_usage(repo):
+    nodes = repo.features.ast_node_counts.get('Print', 0)
+    return 100.0 * nodes / repo.features.num_ast_nodes
 
 
-class RelNumComments(Feature):
+@feature
+def comment_ratio(repo):
     """Number of comments / code volume."""
+    num = 0
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        num = 0
+    for src_fn, src in repo.features.source_contents.iteritems():
+        strbuf = StringIO(src)
+        try:
+            toks = tokenize.generate_tokens(strbuf.readline)
+            num += len([t for t in toks if t[0] == tokenize.COMMENT])
+        except:
+            #similar to does not compile error
+            logging.exception("file %s/%s does not tokenize",
+                              repo.name, src_fn)
 
-        for src_fn, src in SourceContents._get_val(user_repo,
-                                                   features).iteritems():
-            strbuf = StringIO(src)
-            try:
-                toks = tokenize.generate_tokens(strbuf.readline)
-                num += len([t for t in toks if t[0] == tokenize.COMMENT])
-            except:
-                #similar to does not compile error
-                logging.exception("file %s/%s does not tokenize",
-                                  user_repo, src_fn)
-
-        #consider storing fractions and converting out later
-        return 100.0 * num / NumAstNodes._get_val(user_repo, features)
+    #consider storing fractions and converting out later
+    return 100.0 * num / repo.features.num_ast_nodes
 
 
-class DocStringUsage(Feature):
-    """Percent of definitions with docstrings."""
+@feature
+def docstring_ratio(repo):
+    """Percent of function/class/module definitions with docstrings."""
+    def_nodes = 1  # avoid division by zero
+    doc_def_nodes = 0
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        def_nodes = 1  # avoid division by zero
-        doc_def_nodes = 0
+    for root in repo.features.asts.itervalues():
+        for node in pyast.walk(root):
+            if isinstance(node, (pyast.FunctionDef, pyast.ClassDef,
+                                 pyast.Module)):
 
-        for root in Asts._get_val(user_repo, features).itervalues():
-            for node in pyast.walk(root):
-                if isinstance(node, (pyast.FunctionDef, pyast.ClassDef,
-                                     pyast.Module)):
+                def_nodes += 1
 
-                    def_nodes += 1
+                docstring = pyast.get_docstring(node)
 
-                    docstring = pyast.get_docstring(node)
+                if docstring:
+                    doc_def_nodes += 1
 
-                    if docstring:
-                        doc_def_nodes += 1
-
-        return 100.0 * doc_def_nodes / def_nodes
+    return 100.0 * doc_def_nodes / def_nodes
 
 
-class DocStringVolume(Feature):
-    """Sum of docstring lengths / def nodes"""
+@feature
+def docstring_avg_len(repo):
+    def_nodes = 1  # avoid division by zero
+    docstring_len = 0
 
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        def_nodes = 1  # avoid division by zero
-        docstring_len = 0
+    for root in repo.features.asts.itervalues():
+        for node in pyast.walk(root):
+            if isinstance(node, (pyast.FunctionDef, pyast.ClassDef,
+                                 pyast.Module)):
 
-        for root in Asts._get_val(user_repo, features).itervalues():
-            for node in pyast.walk(root):
-                if isinstance(node, (pyast.FunctionDef, pyast.ClassDef,
-                                     pyast.Module)):
+                def_nodes += 1
 
-                    def_nodes += 1
+                docstring = pyast.get_docstring(node)
 
-                    docstring = pyast.get_docstring(node)
+                if docstring:
+                    docstring_len += len(docstring)
 
-                    if docstring:
-                        docstring_len += len(docstring)
-
-        return 100.0 * docstring_len / def_nodes
+    return 100.0 * docstring_len / def_nodes

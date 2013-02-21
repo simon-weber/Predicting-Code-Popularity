@@ -37,7 +37,9 @@ class _Serializable(object):
 class _MsgpackMeta(type):
     """Set on a class to enable serialization with msgpack.
 
-    _Serializable becomes a base, so classes can override _un/pack."""
+    _Serializable becomes a base, so classes can override _un/pack.
+
+    Note that msgpack encodes Unicodes to utf8."""
 
     def __new__(cls, name, bases, dct):
         #Insert our methods.
@@ -91,26 +93,23 @@ class _MsgpackMeta(type):
         return obj
 
 
-_FRepo = recordtype(
-    'FRepo',
-    (
-        ['name'] +  # name of repo
-        [fname for fname in all_features]
-    ),
+_Features = recordtype(
+    'Features',
+    [fname for fname in all_features],
     default=None
 )
 
 
-class FRepo(_FRepo):
-    """A _F_eature repo stores calculated features for some repo."""
+class Features(_Features):
+    """Features stores all known features."""
     __metaclass__ = _MsgpackMeta
 
     def __getattribute__(self, name):
-        """Intercept access to features to calculate on the fly."""
-        val = super(FRepo, self).__getattribute__(name)
+        """Intercept access to calculate on the fly."""
+        val = super(Features, self).__getattribute__(name)
 
-        if name in all_features and val is None:
-            val = all_features[name]._calculate()
+        if val is None:
+            val = all_features[name]()
             setattr(self, name, val)
 
         return val
@@ -141,42 +140,42 @@ class YMD(_YMD):
         return YMD(date.year, date.month, date.day)
 
 
-_GRepo = recordtype('GRepo',
-                    ['name',  # in 'user/repo' format
-                     'stars',
-                     'fetch_ymd',  # YMD of data acquisition
-                     # these are all GitHub apiv3 names:
-                     'clone_url',
-                     'created_at',
-                     'description',
-                     'fork',
-                     'forks',
-                     'git_url',
-                     'has_downloads',
-                     'has_issues',
-                     'has_wiki',
-                     'homepage',
-                     'html_url',
-                     'id',
-                     'language',
-                     'master_branch',
-                     'open_issues',
-                     'private',
-                     'pushed_at',
-                     'size',
-                     'ssh_url',
-                     'svn_url',
-                     'updated_at',
-                     'url',
-                     ])
+_Repo = recordtype('Repo',
+                   ['name',  # in 'user/repo' format
+                    'features',  # Features
+                    'stars',
+                    'fetch_ymd',  # YMD of data acquisition
+                    # these are all GitHub apiv3 names:
+                    'clone_url',
+                    'created_at',
+                    'description',
+                    'fork',
+                    'forks',
+                    'git_url',
+                    'has_downloads',
+                    'has_issues',
+                    'has_wiki',
+                    'homepage',
+                    'html_url',
+                    'id',
+                    'language',
+                    'master_branch',
+                    'open_issues',
+                    'private',
+                    'pushed_at',
+                    'size',
+                    'ssh_url',
+                    'svn_url',
+                    'updated_at',
+                    'url',
+                    ])
 
 
-class GRepo(_GRepo):
-    """A _G_itHub repo stores a snapshot of GitHub repo metadata retrieved from
-    `http://developer.github.com/v3/repos/#get` on some date.
-
-    Note that strings will be encoded as utf8 after a dump/load cycle."""
-
+class Repo(_Repo):
+    """A repo stores a snapshot of GitHub repo metadata retrieved from
+    `http://developer.github.com/v3/repos/#get` on some date, and any features
+    calculated on that repo's code/metadata.
+    """
     __metaclass__ = _MsgpackMeta
 
     def __str__(self):
@@ -189,6 +188,10 @@ class GRepo(_GRepo):
     @property
     def reponame(self):
         self.name.split('/')[1]
+
+    def calculate_all(self):
+        #TODO - probably loginc from calculate()
+        pass
 
     @staticmethod
     def from_erepo(erepo):
@@ -203,7 +206,7 @@ class GRepo(_GRepo):
         kwargs = {g_f: getattr(erepo, e_f) for (g_f, e_f) in grepo_to_erepo.items()}
         kwargs['fetch_ymd'] = YMD.from_date(erepo._elaborated_at)
 
-        return GRepo(**kwargs)
+        return Repo(**kwargs)
 
 
 class ERepoModel(Model):

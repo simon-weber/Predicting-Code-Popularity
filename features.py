@@ -153,41 +153,41 @@ def all_file_sizes(repo):
 
 @support_feature
 def src_file_sizes(repo):
-    return {f: size for (f, size) in repo.features.all_file_sizes.iteritems()
+    return {f: size for (f, size) in repo._calc('all_file_sizes').iteritems()
             if f.endswith('.py')}
 
 
 @feature
 def num_all_files(repo):
-    return len(repo.features.all_file_sizes)
+    return len(repo._calc('all_file_sizes'))
 
 
 @feature
 def size_all_files(repo):
     """Total filesize of all files in the repo."""
-    return sum(size for size in repo.features.all_file_sizes.itervalues())
+    return sum(size for size in repo._calc('all_file_sizes').itervalues())
 
 
 @feature
 def size_src_files(repo):
-    return sum(size for fname, size in repo.features.src_file_sizes.iteritems())
+    return sum(size for fname, size in repo._calc('src_file_sizes').iteritems())
 
 
 @feature
 def num_src_files(repo):
-    return len(repo.features.src_file_sizes)
+    return len(repo._calc('src_file_sizes'))
 
 
 @feature
 def ratio_src_files(repo):
     """.py files / all files"""
-    return 100.0 * repo.features.num_src_files / repo.features.num_all_files
+    return 100.0 * repo._calc('num_src_files ') / repo._calc('num_all_files')
 
 
 @feature
 def ratio_vol_src_files(repo):
     """size of .py files / size of all files"""
-    return 100.0 * repo.features.size_src_files / repo.features.size_all_files
+    return 100.0 * repo._calc('size_src_files ') / repo._calc('size_all_files')
 
 
 @feature
@@ -236,12 +236,12 @@ def source_contents(repo):
     """A dict {filename: contents} for all source files."""
     contents = {}
 
-    for py_file, size in repo.features.src_file_sizes.iteritems():
+    for py_file, size in repo._calc('src_file_sizes').iteritems():
         try:
             with open(py_file, 'rb') as f:
                 contents[py_file] = f.read()
         except IOError:
-            logging.exception("could not open %s/%s", repo.name, py_file)
+            logging.exception("could not open %s/%s", repo._calc('name'), py_file)
 
     return contents
 
@@ -261,7 +261,7 @@ def source_contents(repo):
 def asts(repo):
     """A dict {filename: ast} for all .py files."""
     asts = {}
-    for src_fn, src in repo.features.source_contents.iteritems():
+    for src_fn, src in repo._calc('source_contents').iteritems():
         try:
             ast = pyast.parse(src)
         except:
@@ -283,7 +283,7 @@ def ast_node_counts(repo):
     """A counter over ast node names for all source."""
     counter = Counter()
 
-    for ast in repo.features.asts.itervalues():
+    for ast in repo._calc('asts').itervalues():
         counter.update(node.__class__.__name__
                        for node in pyast.walk(ast))
 
@@ -293,7 +293,7 @@ def ast_node_counts(repo):
 @feature
 def num_ast_nodes(repo):
     """Total number of ast nodes; a measure of code volume."""
-    nodes = sum(count for count in repo.features.ast_node_counts.values())
+    nodes = sum(count for count in repo._calc('ast_node_counts').values())
     nodes += 1  # used as relative, don't want 0
     return nodes
 
@@ -301,38 +301,38 @@ def num_ast_nodes(repo):
 #These features refer to usage of certain language features.
 @feature
 def with_stmt_usage(repo):
-    nodes = repo.features.ast_node_counts.get('With', 0)
-    return 100.0 * nodes / repo.features.num_ast_nodes
+    nodes = repo._calc('ast_node_counts').get('With', 0)
+    return 100.0 * nodes / repo._calc('num_ast_nodes')
 
 
 @feature
 def compr_usage(repo):
-    nodes = repo.features.ast_node_counts.get('comprehension', 0)
-    return 100.0 * nodes / repo.features.num_ast_nodes
+    nodes = repo._calc('ast_node_counts').get('comprehension', 0)
+    return 100.0 * nodes / repo._calc('num_ast_nodes')
 
 
 @feature
 def lambda_usage(repo):
-    nodes = repo.features.ast_node_counts.get('Lambda', 0)
-    return 100.0 * nodes / repo.features.num_ast_nodes
+    nodes = repo._calc('ast_node_counts').get('Lambda', 0)
+    return 100.0 * nodes / repo._calc('num_ast_nodes')
 
 
 @feature
 def global_usage(repo):
-    nodes = repo.features.ast_node_counts.get('Global', 0)
-    return 100.0 * nodes / repo.features.num_ast_nodes
+    nodes = repo._calc('ast_node_counts').get('Global', 0)
+    return 100.0 * nodes / repo._calc('num_ast_nodes')
 
 
 @feature
 def gen_exp_usage(repo):
-    nodes = repo.features.ast_node_counts.get('GeneratorExp', 0)
-    return 100.0 * nodes / repo.features.num_ast_nodes
+    nodes = repo._calc('ast_node_counts').get('GeneratorExp', 0)
+    return 100.0 * nodes / repo._calc('num_ast_nodes')
 
 
 @feature
 def print_usage(repo):
-    nodes = repo.features.ast_node_counts.get('Print', 0)
-    return 100.0 * nodes / repo.features.num_ast_nodes
+    nodes = repo._calc('ast_node_counts').get('Print', 0)
+    return 100.0 * nodes / repo._calc('num_ast_nodes')
 
 
 @feature
@@ -340,7 +340,7 @@ def comment_ratio(repo):
     """Number of comments / code volume."""
     num = 0
 
-    for src_fn, src in repo.features.source_contents.iteritems():
+    for src_fn, src in repo._calc('source_contents').iteritems():
         strbuf = StringIO(src)
         try:
             toks = tokenize.generate_tokens(strbuf.readline)
@@ -351,7 +351,7 @@ def comment_ratio(repo):
                               repo.name, src_fn)
 
     #consider storing fractions and converting out later
-    return 100.0 * num / repo.features.num_ast_nodes
+    return 100.0 * num / repo._calc('num_ast_nodes')
 
 
 @feature
@@ -360,7 +360,7 @@ def docstring_ratio(repo):
     def_nodes = 1  # avoid division by zero
     doc_def_nodes = 0
 
-    for root in repo.features.asts.itervalues():
+    for root in repo._calc('asts').itervalues():
         for node in pyast.walk(root):
             if isinstance(node, (pyast.FunctionDef, pyast.ClassDef,
                                  pyast.Module)):
@@ -380,7 +380,7 @@ def docstring_avg_len(repo):
     def_nodes = 1  # avoid division by zero
     docstring_len = 0
 
-    for root in repo.features.asts.itervalues():
+    for root in repo._calc('asts').itervalues():
         for node in pyast.walk(root):
             if isinstance(node, (pyast.FunctionDef, pyast.ClassDef,
                                  pyast.Module)):

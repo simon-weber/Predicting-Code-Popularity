@@ -3,6 +3,8 @@ database. It is still used when choosing a new random sample."""
 
 from base64 import b64encode, b64decode
 import cPickle as pickle
+import logging
+import os
 
 import msgpack
 from peewee import SqliteDatabase, Model
@@ -11,6 +13,7 @@ from recordtype import recordtype
 
 from features import all_features as real_features
 from features import _support_features
+import utils
 
 all_features = dict(real_features.items() + _support_features.items())
 
@@ -93,36 +96,6 @@ class _MsgpackMeta(type):
         return obj
 
 
-_Features = recordtype(
-    'Features',
-    [fname for fname in all_features],
-    default=None
-)
-
-
-class Features(_Features):
-    """Features stores all known features."""
-    __metaclass__ = _MsgpackMeta
-
-    def __getattribute__(self, name):
-        """Intercept access to calculate on the fly."""
-        val = super(Features, self).__getattribute__(name)
-
-        if val is None:
-            val = all_features[name]()
-            setattr(self, name, val)
-
-        return val
-
-    @classmethod
-    def _pack(cls, obj):
-        """Don't write out support features."""
-        d = {k: v for (k, v) in obj._asdict()
-             if k not in _support_features}
-
-        return d
-
-
 _YMD = recordtype(
     'YMD',
     'year month day'
@@ -140,35 +113,38 @@ class YMD(_YMD):
         return YMD(date.year, date.month, date.day)
 
 
-_Repo = recordtype('Repo',
-                   ['name',  # in 'user/repo' format
-                    'features',  # Features
-                    'stars',
-                    'fetch_ymd',  # YMD of data acquisition
-                    # these are all GitHub apiv3 names:
-                    'clone_url',
-                    'created_at',
-                    'description',
-                    'fork',
-                    'forks',
-                    'git_url',
-                    'has_downloads',
-                    'has_issues',
-                    'has_wiki',
-                    'homepage',
-                    'html_url',
-                    'id',
-                    'language',
-                    'master_branch',
-                    'open_issues',
-                    'private',
-                    'pushed_at',
-                    'size',
-                    'ssh_url',
-                    'svn_url',
-                    'updated_at',
-                    'url',
-                    ])
+_Repo = recordtype('Repo', (
+    ['name',  # in 'user/repo' format
+     'stars',
+     'fetch_ymd',  # YMD of data acquisition
+     ] +
+
+    # these are all GitHub apiv3 names:
+    ['clone_url',
+     'created_at',
+     'description',
+     'fork',
+     'forks',
+     'git_url',
+     'has_downloads',
+     'has_issues',
+     'has_wiki',
+     'homepage',
+     'html_url',
+     'id',
+     'language',
+     'master_branch',
+     'open_issues',
+     'private',
+     'pushed_at',
+     'size',
+     'ssh_url',
+     'svn_url',
+     'updated_at',
+     'url',
+     ] +
+    [(fname, None) for fname in all_features]
+))
 
 
 class Repo(_Repo):
@@ -181,6 +157,26 @@ class Repo(_Repo):
     def __str__(self):
         return self.name.encode('utf-8')
 
+    @classmethod
+    def _pack(cls, obj):
+        """Don't write out support features."""
+        d = {k: v for (k, v) in obj._asdict().iteritems()
+             if k not in _support_features}
+
+        return d
+
+    def _calc(self, feature):
+        """Perform one-time calculation of a feature."""
+        #even though __getattribute__ is cleaner, sometimes you do want the value
+        #without calculating (eg when writing out)
+        val = getattr(self, feature)
+
+        if val is None:
+            val = all_features[feature](self)
+            setattr(self, feature, val)
+
+        return val
+
     @property
     def username(self):
         self.name.split('/')[0]
@@ -189,9 +185,32 @@ class Repo(_Repo):
     def reponame(self):
         self.name.split('/')[1]
 
-    def calculate_all(self):
-        #TODO - probably loginc from calculate()
+    def calculate_features(self):
+        """Change to this repo's directory, then calculate all its features."""
+        #TODO make aware of current snapshot
+
         pass
+        #old calculate:
+        #def calculate(cls, user_repo, features):
+        #    """Set our feature value on *features*."""
+        #    #also factors out boilerplate from actual calculation
+
+        #    logging.info('fcalc: %s(%s)', cls.__name__,  user_repo)
+
+        #    try:
+        #        repo_path = os.path.join(repo_dir, *user_repo.split('/'))
+
+        #        if os.getcwd().endswith(repo_path):
+        #            # we're already in the directory from another feature
+        #            repo_path = '.'
+
+        #        with utils.cd(repo_path):
+        #            retval = cls._calculate(user_repo, features)
+        #            cls._set_val(user_repo, features, retval)
+        #            #logging.info('found: %s', retval)
+        #    except:
+        #        #logging.exception('exception during fcalc')
+        #        raise
 
     @staticmethod
     def from_erepo(erepo):

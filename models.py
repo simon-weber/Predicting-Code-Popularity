@@ -11,6 +11,7 @@ from peewee import SqliteDatabase, Model
 from peewee import BooleanField, DateTimeField, IntegerField, TextField
 from recordtype import recordtype
 
+from config import config
 from features import all_features as real_features
 from features import _support_features
 import utils
@@ -64,15 +65,26 @@ class _MsgpackMeta(type):
     #TODO make these aware of a current snapshot/sample
     #load/dump are the user interface - they can handle all registered classes
     @classmethod
-    def load(cls, filepath):
+    def load(cls, filepath=None):
+        """Load the contents of the given filepath.
+        If None, assume '<current_snapshot>/repos.msgpack'"""
+
+        if filepath is None:
+            filepath = os.path.join(config['current_snapshot'], 'repos.msgpack')
+
         with open(filepath, 'rb') as f:
             records = msgpack.load(f, object_hook=cls._loader)
 
         return records
 
     @classmethod
-    def dump(cls, records, filepath):
-        with open(filepath, 'wb') as f:
+    def dump(cls, records, filepath=None):
+        """Dump in the same fashion as load."""
+
+        if filepath is None:
+            filepath = os.path.join(config['current_snapshot'], 'repos.msgpack')
+
+        with utils.FaultTolerantFile(filepath, 'wb') as f:
             msgpack.dump(records, f, default=cls._dumper)
 
     #behind the scenes, _loader and _dumper do the work

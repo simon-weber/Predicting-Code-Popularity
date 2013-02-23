@@ -1,6 +1,5 @@
 """Various utilies used across the project."""
 
-import cPickle as pickle
 from contextlib import contextmanager
 import logging
 import os
@@ -9,9 +8,10 @@ import tarfile
 from tempfile import NamedTemporaryFile
 import urllib  # I'm as surprised as you are, this was easiest
 
-from config import feature_pickle_name, repo_dir
+from config import config
 #from sample import repos
 
+logging.basicConfig(filename='utils.log', level=logging.DEBUG)
 
 class cd:
     def __init__(self, newPath):
@@ -25,24 +25,24 @@ class cd:
         os.chdir(self.savedPath)
 
 
-def download(user_repo, master_branch='master'):
-    """Return if the repo is downloaded and ready for further processing."""
+def download(repo):
+    """Return True if the repo is downloaded and ready for further processing."""
 
-    logging.info("download: %s", user_repo)
+    logging.info("download: %s", repo)
 
-    user, repo = user_repo.split('/')
+    user, reponame = repo.name.split('/')
 
-    result_path = os.path.join(repo_dir, user, repo)
+    result_path = os.path.join(config['current_snapshot'], 'code', user, reponame)
     if os.path.exists(result_path):
         # don't redownload
         logging.info("already downloaded")
         return True
 
     tarball_url = ("https://github.com/"
-                   "{}/archive/{}.tar.gz").format(user_repo, master_branch)
+                   "{}/archive/{}.tar.gz").format(repo.name, repo.master_branch)
 
-    tarball_fn = "{}_{}.tar.gz".format(user, repo)
-    inner_dir = "{}-{}".format(repo, master_branch)
+    tarball_fn = "{}_{}.tar.gz".format(user, reponame)
+    inner_dir = "{}-{}".format(reponame, repo.master_branch)
 
     success = False
     attempts = 0
@@ -75,7 +75,7 @@ def download(user_repo, master_branch='master'):
             attempts += 1
 
     if not success:
-        logging.error("could not download %s", user_repo)
+        logging.error("could not download %s", repo)
     else:
         logging.info('downloaded')
 
@@ -127,9 +127,9 @@ def FaultTolerantFile(name):
 #    return f_dicts
 
 
-def persist_f_dicts(f_dicts):
-    with FaultTolerantFile(feature_pickle_name) as f:
-        pickle.dump(f_dicts, f, pickle.HIGHEST_PROTOCOL)
+#def persist_f_dicts(f_dicts):
+#    with FaultTolerantFile(feature_pickle_name) as f:
+#        pickle.dump(f_dicts, f, pickle.HIGHEST_PROTOCOL)
 
 
 def create_bimap(els):

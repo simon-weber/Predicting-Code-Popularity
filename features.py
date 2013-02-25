@@ -15,7 +15,6 @@ import logging
 import tokenize
 from StringIO import StringIO
 
-from config import repo_dir
 import utils
 
 
@@ -24,97 +23,6 @@ import utils
 all_features = {}
 
 _support_features = {}
-
-
-class _RegisterMeta(type):
-    """This metaclass registers concrete features in all_features."""
-
-    def __new__(cls, name, bases, dct):
-        c = super(_RegisterMeta, cls).__new__(cls, name, bases, dct)
-
-        # don't register abcs and support features
-        base_names = [base.__name__ for base in bases]
-        if 'Feature' in base_names and name != 'SupportOnlyFeature':
-            all_features[name] = c
-        elif 'SupportOnlyFeature' in base_names:
-            _support_features[name] = c
-
-        return c
-
-
-class Feature(object):
-    """ABC for a feature. Features define a calculation on a repo.
-
-    Features are callable, and mutate a given f_dict to include their value.
-    """
-    __metaclass__ = _RegisterMeta
-
-    calculated_on = None  # the last repo we have been calculated on
-
-    @classmethod
-    def _get_val(cls, user_repo, features):
-        """Return the value for this Feature, calculating it if needed."""
-        if cls.calculated_on != user_repo:
-            cls.calculate(user_repo, features)
-
-        return cls._pull_val(features)
-
-    @classmethod
-    def _pull_val(cls, features):
-        return features[cls.__name__]
-
-    @classmethod
-    def _set_val(cls, user_repo, features, val):
-        cls.calculated_on = user_repo
-        cls._store_val(features, val)
-
-    @classmethod
-    def _store_val(cls, features, val):
-        features[cls.__name__] = val
-
-    @classmethod
-    def calculate(cls, user_repo, features):
-        """Set our feature value on *features*."""
-        #also factors out boilerplate from actual calculation
-
-        logging.info('fcalc: %s(%s)', cls.__name__,  user_repo)
-
-        try:
-            repo_path = os.path.join(repo_dir, *user_repo.split('/'))
-
-            if os.getcwd().endswith(repo_path):
-                # we're already in the directory from another feature
-                repo_path = '.'
-
-            with utils.cd(repo_path):
-                retval = cls._calculate(user_repo, features)
-                cls._set_val(user_repo, features, retval)
-                #logging.info('found: %s', retval)
-        except:
-            #logging.exception('exception during fcalc')
-            raise
-
-    @classmethod
-    def _calculate(cls, user_repo, features):
-        """Perform the actual calculation of the Feature, possibly using other
-        features to support our calculation."""
-        raise NotImplementedError  # implemented by concrete Features
-
-
-class SupportOnlyFeature(Feature):
-    """ABC for a feature that only exists to support other features.
-
-    It is not set in the feature dict for a repo.
-    """
-    val = None  # since we're not in the dict, store ourselves in our own class
-
-    @classmethod
-    def _pull_val(cls, _):
-        return cls.val
-
-    @classmethod
-    def _store_val(cls, features, val):
-        cls.val = val
 
 
 #These decorators register a feature as normal/support.
@@ -127,9 +35,8 @@ def support_feature(f):
     _support_features[f.__name__] = f
     return f
 
-# non-source files
 #features take a Repo and return their value.
-#they assume curdir is the repo's directory
+#they assume cwd is the repo's directory
 
 
 @support_feature
@@ -393,3 +300,23 @@ def docstring_avg_len(repo):
                     docstring_len += len(docstring)
 
     return 100.0 * docstring_len / def_nodes
+
+
+@feature
+def imported_modules(repo):
+    """Return a set (as tuple) of toplevel module names this repo could import."""
+
+    imports = set()
+
+    for root in repo._calc('asts').itervalues():
+        for node in pyast.walk(root):
+            if isinstance(node, pyast.Import):
+                for alias in node.names:
+                    imports.add(alias.name.split('.')[0])
+            elif isinstance(node, pyast.ImportFrom):
+                #can't get relative imports without running them,
+                #but they're just intra-package anyway
+                if node.level == 0 and node.module:
+                    imports.add(node.module.split('.')[0])
+
+    return tuple(imports)

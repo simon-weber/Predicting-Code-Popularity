@@ -2,12 +2,15 @@
 repos, then downloads and calcuates any missing features. Since this can take
 some time, the pickle is written after every 50 repos are processed."""
 
+import argparse
+import code
 import logging
-logging.basicConfig(filename='calcfeatures.log', level=logging.DEBUG)
 import sys
 
-from features import all_features
+from models import Repo
 import utils
+
+logging.basicConfig(filename='calcfeatures.log', level=logging.DEBUG)
 
 
 def progress_bar(processed, total):
@@ -20,40 +23,75 @@ def progress_bar(processed, total):
     sys.stdout.flush()
 
 
-if __name__ == '__main__':
-    f_dicts = utils.load_f_dicts()
+def calculate(f_to_calc, f_to_overwrite, console):
+    """Calculate a list of features."""
+
+    #if feature_names is None:
+    #    feature_names = all_features.keys()
+
+    print 'loading...'
+    repos = Repo.load_sample()
 
     seen = 0
-    total = len(f_dicts)
-    failures = []
+    total = len(repos)
+    dl_failures = []
 
-    #download/calculate uncalculated features
-    for user_repo, f_dict in f_dicts.iteritems():
+    #download/calculate
+    for repo in repos:
         seen += 1
 
-        success = utils.download(user_repo)
+        success = utils.download(repo)
         if not success:
-            failures.append(user_repo)
+            dl_failures.append(repo)
             continue
 
-        for f_name, feature in all_features.iteritems():
-            if f_name not in f_dict:
-                feature.calculate(user_repo, f_dict)
+        if f_to_calc:
+            repo.calculate_features(f_to_calc)
+
+        if f_to_overwrite:
+            repo.calculate_features(f_to_overwrite, overwrite=True)
 
         progress_bar(seen, total)
-        if seen % 50 == 0 and not failures:
-            utils.persist_f_dicts(f_dicts)
+        #if seen % 50 == 0 and not dl_failures:
+        #    utils.persist_f_dicts(f_dicts)
 
-    #remove failures. another attempt will be made on the next run
-    for bad_repo in failures:
-        del f_dicts[bad_repo]
+    print  # from progress bar line
 
-    print
-
-    if failures:
-        print "%s failures" % len(failures)
-        for f in failures:
+    if dl_failures:
+        print "%s failed to download:" % len(dl_failures)
+        for f in dl_failures:
             print "  %s" % f
+        print
+
+    if console:
+        code.interact(local=locals())
 
     print 'writing out...'
-    utils.persist_f_dicts(f_dicts)
+    Repo.write_update(repos)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Calculate features for the current sample.')
+
+    parser.add_argument('--calc', nargs='*', metavar='feature',
+                        help='calculate the given features, but do not overwrite')
+
+    parser.add_argument('--overwrite', nargs='*', metavar='feature',
+                        help='calculate the given features, overwriting any current value')
+
+    parser.add_argument('--console', action='store_true',
+                        help=('after calculation and before write-out, open a repl.'
+                              ' the list of Repos is available as `repos`.'
+                              ' call `exit()` to abort before writing out,'
+                              ' otherwise use EOF to continue.'))
+
+    args = parser.parse_args()
+
+    if not args.console and not (args.calc or args.overwrite):
+        parser.print_help()
+        return
+
+    calculate(args.calc, args.overwrite, args.console)
+
+if __name__ == '__main__':
+    main()

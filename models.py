@@ -3,7 +3,7 @@ database. It is still used when choosing a new random sample."""
 
 from base64 import b64encode, b64decode
 import cPickle as pickle
-import logging
+import json
 import os
 
 import msgpack
@@ -62,8 +62,8 @@ class _MsgpackMeta(type):
 
         return c
 
-    #TODO make these aware of a current snapshot/sample
     #load/dump are the user interface - they can handle all registered classes
+    #TODO expose a way to only load/dump sample
     @classmethod
     def load(cls, filepath=None):
         """Load the contents of the given filepath.
@@ -84,7 +84,7 @@ class _MsgpackMeta(type):
         if filepath is None:
             filepath = os.path.join(config['current_snapshot'], 'repos.msgpack')
 
-        with utils.FaultTolerantFile(filepath, 'wb') as f:
+        with utils.FaultTolerantFile(filepath) as f:
             msgpack.dump(records, f, default=cls._dumper)
 
     #behind the scenes, _loader and _dumper do the work
@@ -177,52 +177,78 @@ class Repo(_Repo):
 
         return d
 
-    def _calc(self, feature):
+    def _calc(self, feature_name, overwrite=False):
         """Perform one-time calculation of a feature."""
         #even though __getattribute__ is cleaner, sometimes you do want the value
         #without calculating (eg when writing out)
-        val = getattr(self, feature)
 
-        if val is None:
-            val = all_features[feature](self)
-            setattr(self, feature, val)
+        if feature_name not in all_features:
+            raise ValueError("%s is not a valid feature name" % feature_name)
+
+        val = getattr(self, feature_name)
+
+        if val is None or overwrite:
+            val = all_features[feature_name](self)
+            setattr(self, feature_name, val)
 
         return val
 
     @property
     def username(self):
-        self.name.split('/')[0]
+        return self.name.split('/')[0]
 
     @property
     def reponame(self):
-        self.name.split('/')[1]
+        return self.name.split('/')[1]
 
-    def calculate_features(self):
-        """Change to this repo's directory, then calculate all its features."""
-        #TODO make aware of current snapshot
+    def calculate_features(self, features=None, overwrite=False):
+        """Change to this repo's directory in the current snapshot,
+        then calculate the given features.
+        If features is None, calculate all features."""
 
-        pass
-        #old calculate:
-        #def calculate(cls, user_repo, features):
-        #    """Set our feature value on *features*."""
-        #    #also factors out boilerplate from actual calculation
+        if features is None:
+            features = all_features.keys()
 
-        #    logging.info('fcalc: %s(%s)', cls.__name__,  user_repo)
+        code_dir = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)),
+            config['current_snapshot'], 'code', self.username, self.reponame
+        )
 
-        #    try:
-        #        repo_path = os.path.join(repo_dir, *user_repo.split('/'))
+        with utils.cd(code_dir):
+            for f in features:
+                self._calc(f, overwrite)
 
-        #        if os.getcwd().endswith(repo_path):
-        #            # we're already in the directory from another feature
-        #            repo_path = '.'
+    @classmethod
+    def load_sample(cls, sample_path=None):
+        """Load only repos in the given sample.
+        If None, assume '<current_snapshot>/<current_sample>'"""
+        repos = cls.load()
 
-        #        with utils.cd(repo_path):
-        #            retval = cls._calculate(user_repo, features)
-        #            cls._set_val(user_repo, features, retval)
-        #            #logging.info('found: %s', retval)
-        #    except:
-        #        #logging.exception('exception during fcalc')
-        #        raise
+        # memoize for probable write_update
+        cls._last_loaded = repos
+
+        if sample_path is None:
+            sample_path = os.path.join(config['current_snapshot'], config['current_sample'])
+
+        with open(sample_path, 'rb') as f:
+            repos_in_sample = set(json.load(f))
+
+        return [r for r in repos if r.name in repos_in_sample]
+
+    @classmethod
+    def write_update(cls, records, filepath=None):
+        """Like dump, but overwrites repos with a duplicate name."""
+        loaded = getattr(cls, '_last_loaded', None)
+        if loaded is None:
+            loaded = cls.load(filepath)
+
+        cur_repos = {r.name: r for r in loaded}
+        new_repos = {r.name: r for r in records}
+
+        cur_repos.update(new_repos)
+
+        cls.dump(cur_repos.values(), filepath)
+        cls._last_loaded = None
 
     @staticmethod
     def from_erepo(erepo):

@@ -11,7 +11,6 @@ import urllib  # I'm as surprised as you are, this was easiest
 from config import config
 #from sample import repos
 
-logging.basicConfig(filename='utils.log', level=logging.DEBUG)
 
 class cd:
     def __init__(self, newPath):

@@ -1,0 +1,8 @@
+*.pyc
+*.pyo
+
+*~
+*.swp
+_*.py
+
+venv*

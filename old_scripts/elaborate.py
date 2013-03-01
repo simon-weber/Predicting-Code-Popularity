@@ -1,4 +1,7 @@
-"""The script used to gather repo metadata from the GitHub api."""
+"""The script used to gather repo metadata from the GitHub api.
+
+This requires an sqlite database set up with empty ERepos with
+_elaborate = False."""
 
 import datetime
 import logging
@@ -81,8 +84,7 @@ class Elaborator(object):
                 erepo = None
 
             except:
-                #hack hat trick!
-                #but officer, this loop really needs to run at all costs
+                #loop really needs to keep running
                 logging.exception("%s", erepo)
 
                 erepo._elaborated = False

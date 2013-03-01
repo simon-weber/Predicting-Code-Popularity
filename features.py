@@ -320,3 +320,11 @@ def imported_modules(repo):
                     imports.add(node.module.split('.')[0])
 
     return tuple(imports)
+
+
+@feature
+def imported_stdlib_modules(repo):
+    """Like imported_modules, but only keeps stdlib modules."""
+
+    return tuple(mod for mod in repo._calc('imported_modules')
+                 if mod in utils.stdlib_module_names())

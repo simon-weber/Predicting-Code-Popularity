@@ -1,15 +1,43 @@
 """Various utilies used across the project."""
 
 from contextlib import contextmanager
+import distutils.sysconfig as sysconfig
 import logging
 import os
 import shutil
+import sys
 import tarfile
 from tempfile import NamedTemporaryFile
 import urllib  # I'm as surprised as you are, this was easiest
 
 from config import config
 #from sample import repos
+
+
+def stdlib_module_names():
+    """Return a set of names of modules from the stdlib we're running on
+
+    source: http://stackoverflow.com/questions/6463918."""
+    names = set()
+
+    std_lib = sysconfig.get_python_lib(standard_lib=True)
+
+    for top, dirs, files in os.walk(std_lib):
+        for nm in files:
+            prefix = top[len(std_lib)+1:]
+            if prefix[:13] == 'site-packages':
+                continue
+            if nm == '__init__.py':
+                names.add(top[len(std_lib)+1:].replace(os.path.sep, '.'))
+            elif nm[-3:] == '.py':
+                names.add(os.path.join(prefix, nm)[:-3].replace(os.path.sep, '.'))
+            elif nm[-3:] == '.so' and top[-11:] == 'lib-dynload':
+                names.add(nm[0:-3])
+
+    for builtin in sys.builtin_module_names:
+        names.add(builtin)
+
+    return names
 
 
 class cd:

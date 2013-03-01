@@ -14,6 +14,22 @@ from config import config
 #from sample import repos
 
 
+class memoize:
+    """Memoize decorator.
+    source: http://avinashv.net/2008/04/python-decorators-syntactic-sugar"""
+    def __init__(self, function):
+        self.function = function
+        self.memoized = {}
+
+    def __call__(self, *args):
+        try:
+            return self.memoized[args]
+        except KeyError:
+            self.memoized[args] = self.function(*args)
+            return self.memoized[args]
+
+
+@memoize
 def stdlib_module_names():
     """Return a set of names of modules from the stdlib we're running on
 

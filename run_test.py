@@ -1,4 +1,4 @@
-"""This script handle training and evaluation."""
+"""This script handles training and evaluation."""
 
 import functools
 
@@ -70,7 +70,7 @@ def run(id_to_feature, num_features):
     clf.fit(X, y)
     scores = cross_val_score(clf, X, y, score_func=score_func)
     confusions = cross_val_score(clf, X, y,
-                                score_func=confusion_func)
+                                 score_func=confusion_func)
     confusion = np.apply_over_axes(np.sum, confusions, [0, 0])[0]
 
     importances = clf.feature_importances_

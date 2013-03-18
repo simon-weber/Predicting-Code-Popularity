@@ -7,6 +7,7 @@ import code
 import logging
 import sys
 
+from features import all_features
 from models import Repo
 import utils
 
@@ -23,37 +24,43 @@ def progress_bar(processed, total):
     sys.stdout.flush()
 
 
-def calculate(f_to_calc, f_to_overwrite, console):
+def calculate(f_to_calc, f_to_overwrite, console, download):
     """Calculate a list of features."""
 
-    #if feature_names is None:
-    #    feature_names = all_features.keys()
-
-    print 'loading...'
+    print 'loading...',
+    sys.stdout.flush()
     repos = Repo.load_sample()
+    print 'done'
 
     seen = 0
     total = len(repos)
     dl_failures = []
 
-    #download/calculate
-    for repo in repos:
-        seen += 1
+    if f_to_calc or f_to_overwrite or download:
+        for repo in repos:
+            seen += 1
+            success = True
 
-        success = utils.download(repo)
-        if not success:
-            dl_failures.append(repo)
-            continue
+            if download:
+                success = utils.download(repo)
 
-        if f_to_calc:
-            repo.calculate_features(f_to_calc)
+            if not success:
+                dl_failures.append(repo)
+                continue
 
-        if f_to_overwrite:
-            repo.calculate_features(f_to_overwrite, overwrite=True)
+            if f_to_calc:
+                repo.calculate_features(f_to_calc)
 
-        progress_bar(seen, total)
-        #if seen % 50 == 0 and not dl_failures:
-        #    utils.persist_f_dicts(f_dicts)
+            if f_to_overwrite:
+                repo.calculate_features(f_to_overwrite, overwrite=True)
+
+            repo._clear_support_features()  # we're done with this repo now
+
+            progress_bar(seen, total)
+
+            # periodically persist calculations
+            if seen % 50 == 0 and f_to_calc or f_to_overwrite:
+                Repo.write_update(repos)
 
     print  # from progress bar line
 
@@ -64,7 +71,9 @@ def calculate(f_to_calc, f_to_overwrite, console):
         print
 
     if console:
-        code.interact(local=locals())
+        message = ('`repos` contains results;\n'
+                   'use ^d to write out or `exit()` to cancel')
+        code.interact(message, local=locals())
 
     print 'writing out...'
     Repo.write_update(repos)
@@ -85,13 +94,19 @@ def main():
                               ' call `exit()` to abort before writing out,'
                               ' otherwise use EOF to continue.'))
 
+    parser.add_argument('--nodownload', action='store_true',
+                        help="do not download code if it's missing")
+
     args = parser.parse_args()
 
     if not args.console and not (args.calc or args.overwrite):
         parser.print_help()
         return
 
-    calculate(args.calc, args.overwrite, args.console)
+    if args.calc == ['all']:
+        args.calc = all_features.keys()
+
+    calculate(args.calc, args.overwrite, args.console, not args.nodownload)
 
 if __name__ == '__main__':
     main()

@@ -43,6 +43,7 @@ def stdlib_module_names():
             prefix = top[len(std_lib)+1:]
             if prefix[:13] == 'site-packages':
                 continue
+
             if nm == '__init__.py':
                 names.add(top[len(std_lib)+1:].replace(os.path.sep, '.'))
             elif nm[-3:] == '.py':
@@ -53,7 +54,7 @@ def stdlib_module_names():
     for builtin in sys.builtin_module_names:
         names.add(builtin)
 
-    return names
+    return set(name.split('.')[0] for name in names)
 
 
 class cd:
@@ -69,7 +70,12 @@ class cd:
 
 
 def download(repo):
-    """Return True if the repo is downloaded and ready for further processing."""
+    """Return true-y value if the repo is downloaded and ready.
+
+    True: downloaded successfully
+    1: already downloaded
+    False: error while downloading
+    """
 
     logging.info("download: %s", repo)
 

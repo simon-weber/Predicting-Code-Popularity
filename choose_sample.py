@@ -1,43 +1,42 @@
 """This script filters valid repos, then selects a random sample of some
 specified size. The sample is written as Python code to the classes.py file."""
 
-import datetime
+import json
 import os
 import random
-import shutil
 
-from models import ERepo
+from config import config
+from models import Repo
 
 sample_sizes = {'high': 150,
-                'med': 150,
-                'low': 150,
+                #'med': 150,
+                #'low': 150,
                 'un': 150}
 
 class_ranges = {'un': (3, 10),
-                'low': (11, 100),
-                'med': (101, 350),
+                # 'low': (11, 100),
+                # 'med': (101, 350),
                 'high': (351, 100000)}
 
 
 def populate_classes():
-    cutoff = datetime.datetime.now() - datetime.timedelta(days=6 * 30)
+    repos = Repo.load()
+    print 'number of repos:', len(repos)
 
-    frepos = [r for r in ERepo.select().where(ERepo.created_at < cutoff)]
-    frepos = [r for r in frepos if
-              r.size > 0 and
-              r._stars > 2 and
-              r.fork == False and
-              r.master_branch == 'master' and
-              not r.size > 30720 and  # avoid huge repos
-              not 'dotfile' in r._user_repo.lower() and
-              not 'sublime' in r._user_repo.lower()  # avoid SublimeText config
-              ]
+    filtered = [r for r in repos if
+                r.size > 0 and
+                r.stars > 2 and
+                r.size < 30720 and  # avoid huge repos
+                not r.fork and
+                not 'dotfile' in r.name and
+                not 'sublime' in r.name  # avoid SublimeText config
+                ]
 
-    print 'total filtered:', len(frepos)
+    print 'total filtered:', len(filtered)
 
     classes = {name: [] for name in class_ranges}
     for cls_name, (l, h) in class_ranges.items():
-        classes[cls_name].extend(x for x in frepos if l <= x._stars <= h)
+        classes[cls_name].extend(x for x in filtered if l <= x.stars <= h)
 
     return classes
 
@@ -53,19 +52,13 @@ def get_samples(classes):
 
 
 def write_samples(samples):
-    #convert lists to tuples
-    output = {}
-    for cls_name, sample in samples.items():
-        output[cls_name] = tuple(sample)
+    # sample is now one big list
+    output = [r.name for c in samples.values() for r in c]
 
-    #move old file
-    if os.path.exists('classes.py'):
-        shutil.move('classes.py', 'classes.py.old')
+    sample_path = os.path.join(config['current_snapshot'], config['current_sample'])
 
-    #write new file
-    with open('classes.py', 'w') as f:
-        f.write('classes = ')
-        f.write(repr(output))
+    with open(sample_path, 'wb') as f:
+        json.dump(output, f)
 
 
 if __name__ == '__main__':

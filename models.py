@@ -63,7 +63,6 @@ class _MsgpackMeta(type):
         return c
 
     #load/dump are the user interface - they can handle all registered classes
-    #TODO expose a way to only load/dump sample
     @classmethod
     def load(cls, filepath=None):
         """Load the contents of the given filepath.
@@ -193,6 +192,13 @@ class Repo(_Repo):
 
         return val
 
+    def _clear_support_features(self):
+        """Set all support features to None.
+        This can be used during calculation to limit memory use."""
+        for k in _support_features:
+            setattr(self, k, None)
+
+
     @property
     def username(self):
         return self.name.split('/')[0]
@@ -253,10 +259,10 @@ class Repo(_Repo):
     @staticmethod
     def from_erepo(erepo):
         grepo_to_erepo = {'name': '_user_repo',
-                          'stars': '_stars'}
+                          'stars': 'watchers'}
 
         grepo_to_erepo.update({f: f for f in erepo.__dict__['_data']
-                               if f not in ('_user_repo', '_stars', '_elaborated_at',
+                               if f not in ('_user_repo', '_stars', 'watchers', '_elaborated_at',
                                             '_elaborated', '_error', '_features',
                                             '_flagged')})
 
@@ -275,7 +281,7 @@ class ERepo(ERepoModel):
     #start initially populated fields
     #_form to avoid name collisions with github fields
     _user_repo = TextField(primary_key=True)  # eg simon/awesome-repo.
-    _stars = IntegerField(index=True)
+    _stars = IntegerField(null=True)  # no longer used as of 2013/03, use watchers instead
 
     _elaborated = BooleanField(default=False)  # ie 'has been processed'
     _error = BooleanField(default=False)  # eg download failed
@@ -310,6 +316,8 @@ class ERepo(ERepoModel):
     svn_url = TextField(null=True)
     updated_at = DateTimeField(null=True)
     url = TextField(null=True)
+
+    watchers = IntegerField(null=True)  # added before 2013/03 elaboration
 
     #to handle feature encoding/decoding.
     def get_features(self):

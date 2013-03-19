@@ -122,8 +122,12 @@ def setuppy_size(repo):
 
 @feature
 def license_size(repo):
-    #TODO consider eg LICENSE.txt
-    return max(utils.filesize_or_zero(fn) for fn in ('LICENSE', 'COPYING'))
+    matching = glob('LICENSE*') + glob('COPYING*')
+
+    if not matching:
+        return 0
+
+    return max(utils.filesize_or_zero(fn) for fn in matching)
 
 
 @feature
@@ -133,7 +137,12 @@ def travis_cfg_size(repo):
 
 @feature
 def contributing_size(repo):
-    return utils.filesize_or_zero('CONTRIBUTING')
+    matching = glob('CONTRIBUTING*')
+
+    if not matching:
+        return 0
+
+    return max(utils.filesize_or_zero(fn) for fn in matching)
 
 
 # Code features

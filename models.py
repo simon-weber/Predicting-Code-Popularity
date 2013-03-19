@@ -72,7 +72,7 @@ class _MsgpackMeta(type):
             filepath = os.path.join(config['current_snapshot'], 'repos.msgpack')
 
         with open(filepath, 'rb') as f:
-            records = msgpack.load(f, object_hook=cls._loader)
+            records = msgpack.load(f, object_hook=cls._loader, use_list=False)
 
         return records
 
@@ -198,7 +198,6 @@ class Repo(_Repo):
         for k in _support_features:
             setattr(self, k, None)
 
-
     @property
     def username(self):
         return self.name.split('/')[0]
@@ -243,7 +242,7 @@ class Repo(_Repo):
 
     @classmethod
     def write_update(cls, records, filepath=None):
-        """Like dump, but overwrites repos with a duplicate name."""
+        """Like dump, but updates repos with a duplicate name."""
         loaded = getattr(cls, '_last_loaded', None)
         if loaded is None:
             loaded = cls.load(filepath)

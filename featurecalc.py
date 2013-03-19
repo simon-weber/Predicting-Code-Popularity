@@ -4,6 +4,7 @@ some time, the pickle is written after every 50 repos are processed."""
 
 import argparse
 import code
+import datetime
 import logging
 import sys
 
@@ -20,21 +21,21 @@ def progress_bar(processed, total):
     bar = '#' * (pct_done / 5)
     bar = bar.ljust(20)
 
-    sys.stdout.write("\r[{}] {}%".format(bar, pct_done))
+    sys.stdout.write("\rcalculating [{}] {}%".format(bar, pct_done))
     sys.stdout.flush()
 
 
 def calculate(f_to_calc, f_to_overwrite, console, download):
     """Calculate a list of features."""
 
-    print 'loading...',
+    sys.stdout.write('loading')
     sys.stdout.flush()
     repos = Repo.load_sample()
-    print 'done'
 
     seen = 0
     total = len(repos)
     dl_failures = []
+    last_write = datetime.datetime.now()
 
     if f_to_calc or f_to_overwrite or download:
         for repo in repos:
@@ -58,9 +59,14 @@ def calculate(f_to_calc, f_to_overwrite, console, download):
 
             progress_bar(seen, total)
 
-            # periodically persist calculations
-            if seen % 50 == 0 and f_to_calc or f_to_overwrite:
+            since_write = datetime.datetime.now() - last_write
+
+            if since_write > datetime.timedelta(minutes=5):
+                sys.stdout.write(" (writing results)")
+                sys.stdout.flush()
                 Repo.write_update(repos)
+
+                last_write = datetime.datetime.now()
 
     print  # from progress bar line
 

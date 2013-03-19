@@ -30,6 +30,10 @@ def _score_func(id_to_class):
     return f
 
 
+def _mod_feature_name(mod):
+    return 'imports-' + mod
+
+
 def _run(repos, features):
     """Train and run a classifier using features from these repos.
     Current classes are used.
@@ -43,19 +47,19 @@ def _run(repos, features):
     # all features except imports are numerical;
     # imports is transformed into n_modules discrete features
     use_imports = False
-    if 'imported_stdlib_features' in features:
+    if 'imported_stdlib_modules' in features:
         use_imports = True
-        features = [f for f in all_features if f != 'imported_stdlib_modules']
+        features = [f for f in features if f != 'imported_stdlib_modules']
 
     dict_repos = []
     for r in repos:
         d = {}
 
         if use_imports:
-            d.update({'imports-' + mod: False
+            d.update({_mod_feature_name(mod): False
                       for mod in utils.stdlib_module_names()})
             for mod in r.imported_stdlib_modules:
-                d[mod] = True
+                d[_mod_feature_name(mod)] = True
 
         for fname in features:
             d[fname] = getattr(r, fname)
@@ -98,20 +102,8 @@ def _run(repos, features):
 
 
 if __name__ == '__main__':
+    ignore = ['imported_modules']
     features = [f for f in all_features
-                if f not in ['imported_stdlib_modules', 'imported_modules']]
-
-#    features = ['setuppy_size'  ,
-#                'readme_size'     ,
-#                'num_ast_nodes'   ,
-#                'size_src_files'  ,
-#                'with_stmt_usage' ,
-#                'num_all_files'   ,
-#                'ratio_src_files' ,
-#                'size_all_files'  ,
-#                'travis_cfg_size' ,
-#                'docstring_ratio' ,
-#               ]
-#
+                if f not in ignore]
 
     _run(Repo.load_sample(), features)

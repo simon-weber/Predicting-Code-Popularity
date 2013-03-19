@@ -16,7 +16,7 @@ import utils
 
 def get_classifier():
     return RandomForestClassifier(
-        n_estimators=100, max_depth=None, min_samples_split=1,
+        n_estimators=150, max_depth=None, min_samples_split=1, min_samples_leaf=5,
         #random_state=0,  # random seed is static for comparison
         compute_importances=True,
     )
@@ -80,7 +80,7 @@ def _run(repos, features):
 
     importances = clf.feature_importances_
 
-    if len(features) > 1:
+    if len(features) > 1 or use_imports:
         print 'number of samples:', len(X)
         print
         print
@@ -88,12 +88,15 @@ def _run(repos, features):
         f_ranks = np.argsort(importances)[::-1]
         id_to_feature = vec.get_feature_names()
 
-        col_offset = max(len(f) for f in features) + 1
+        col_offset = max(len(f) for f in id_to_feature) + 1
 
-        for i in xrange(len(features)):
+        for i in xrange(len(id_to_feature)):
             name = id_to_feature[f_ranks[i]].ljust(col_offset)
-            val = "%f" % importances[f_ranks[i]]
+            val = importances[f_ranks[i]]
+            if val == 0:
+                continue
 
+            val = "%f" % val
             print name, val
 
     print
@@ -105,5 +108,6 @@ if __name__ == '__main__':
     ignore = ['imported_modules']
     features = [f for f in all_features
                 if f not in ignore]
+    features = ['imported_stdlib_modules']
 
     _run(Repo.load_sample(), features)

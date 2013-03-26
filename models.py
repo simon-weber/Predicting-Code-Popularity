@@ -3,6 +3,7 @@ database. It is still used when choosing a new random sample."""
 
 from base64 import b64encode, b64decode
 import cPickle as pickle
+import datetime
 import json
 import os
 
@@ -205,6 +206,10 @@ class Repo(_Repo):
     @property
     def reponame(self):
         return self.name.split('/')[1]
+
+    @property
+    def creation_date(self):
+        return datetime.datetime(*[int(x) for x in self.created_at[:10].split('-')])
 
     def calculate_features(self, features=None, overwrite=False):
         """Change to this repo's directory in the current snapshot,

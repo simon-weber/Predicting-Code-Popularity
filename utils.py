@@ -69,8 +69,17 @@ class cd:
         os.chdir(self.savedPath)
 
 
+# from http://stackoverflow.com/a/1094933/1231454
+def format_bytes(num):
+    for x in ['bytes', 'KB', 'MB', 'GB']:
+        if num < 1024.0 and num > -1024.0:
+            return "%3.1f%s" % (num, x)
+        num /= 1024.0
+    return "%3.1f%s" % (num, 'TB')
+
+
 def download(repo):
-    """Return true-y value if the repo is downloaded and ready.
+    """Return true value if the repo is downloaded and ready.
 
     True: downloaded successfully
     1: already downloaded
@@ -83,9 +92,8 @@ def download(repo):
 
     result_path = os.path.join(config['current_snapshot'], 'code', user, reponame)
     if os.path.exists(result_path):
-        # don't redownload
         logging.info("already downloaded")
-        return True
+        return 1
 
     tarball_url = ("https://github.com/"
                    "{}/archive/{}.tar.gz").format(repo.name, repo.master_branch)
@@ -99,7 +107,10 @@ def download(repo):
     while not success and attempts < 3:
 
         try:
-            _, headers = urllib.urlretrieve(tarball_url, tarball_fn)
+            tarball_fn, headers = urllib.urlretrieve(tarball_url, tarball_fn)
+
+            tarball_size = os.path.getsize(tarball_fn)
+            logging.debug('tarball size: %s', format_bytes(tarball_size))
 
             logging.debug('extract')
             with tarfile.open(tarball_fn, 'r:gz') as tarball:
@@ -111,7 +122,7 @@ def download(repo):
             logging.debug('add to tree')
             shutil.move(inner_dir, result_path)
         except:
-            logging.exception('problem downloading')
+            logging.exception('problem when downloading/extracting/moving')
             #try to clean up
             try:
                 os.remove(tarball_fn)
@@ -126,7 +137,7 @@ def download(repo):
     if not success:
         logging.error("could not download %s", repo)
     else:
-        logging.info('downloaded')
+        logging.info('downloaded %s', repo)
 
     return success
 

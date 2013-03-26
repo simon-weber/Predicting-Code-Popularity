@@ -35,7 +35,7 @@ def ngrams(mods):
 
 def get_classifier():
     return RandomForestClassifier(
-        n_estimators=100,
+        n_estimators=200,
         max_depth=None,
         min_samples_split=1,
         max_features=None,
@@ -57,10 +57,10 @@ def _mod_feature_name(mods):
     return 'imports: ' + ' '.join(mods)
 
 
-def _select_features(X, y):
+def select_features_rfecv(X, y):
     """Return a new instance of the classification source X."""
     estimator = LinearSVC()
-    selector = RFECV(estimator, step=.1)
+    selector = RFECV(estimator, step=10)
     selector.fit(X, y)
     return selector.transform(X)
 
@@ -81,11 +81,11 @@ def select_l1_features(X, y):
     return LinearSVC(C=0.00005, loss="l2", dual=True).fit_transform(X, y)
 
 
-def select_features(X, y):
+def select_percentile_best_features(X, y):
     """Return a new instance of the classification source X."""
-    selector = SelectPercentile(f_classif, percentile=10)
-    selector.fit(X, y)
-    return selector.transform(X)
+    selector = SelectPercentile(f_classif, percentile=1)
+    return selector.fit_transform(X, y)
+
 
 def select_by_pca(X, y):
     return sklearn.decomposition.RandomizedPCA(n_components=15).fit_transform(X, y)
@@ -96,9 +96,9 @@ def classify(X, y, id_to_class, vec):
     clf = get_classifier()
     clf.fit(X, y)
 
-    scores = cross_val_score(clf, X, y, score_func=_score_func(id_to_class))
+    scores = cross_val_score(clf, X, y, score_func=_score_func(id_to_class), cv=5)
     confusions = cross_val_score(clf, X, y,
-                                 score_func=metrics.confusion_matrix)
+                                 score_func=metrics.confusion_matrix, cv=5)
     confusion = np.apply_over_axes(np.sum, confusions, [0, 0])[0]
 
     importances = clf.feature_importances_
@@ -166,7 +166,7 @@ def _run(repos, features):
     X = vec.fit_transform(dict_repos)
     X = X.todense()
 
-    # classify(X, y, id_to_class, vec)
+    classify(X, y, id_to_class, vec)
     classify(select_by_pca(X, y), y, id_to_class, vec)
 
 
@@ -175,6 +175,6 @@ if __name__ == '__main__':
     #ignore += ['imported_stdlib_modules']
 
     features = [f for f in all_features if f not in ignore]
-    # features = ['imported_stdlib_modules']
+    #features = ['imported_stdlib_modules']
 
     _run(Repo.load_sample(), features)

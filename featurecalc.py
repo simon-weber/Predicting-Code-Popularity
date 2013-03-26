@@ -21,7 +21,9 @@ def progress_bar(processed, total):
     bar = '#' * (pct_done / 5)
     bar = bar.ljust(20)
 
-    sys.stdout.write("\rcalculating [{}] {}%".format(bar, pct_done))
+    flush_right = ' ' * 20  # make sure to overwrite status messages
+
+    sys.stdout.write("\rcalculating [{}] {}%{}".format(bar, pct_done, flush_right))
     sys.stdout.flush()
 
 
@@ -62,7 +64,7 @@ def calculate(f_to_calc, f_to_overwrite, console, download):
             since_write = datetime.datetime.now() - last_write
 
             if since_write > datetime.timedelta(minutes=5):
-                sys.stdout.write(" (writing results)")
+                sys.stdout.write("\r(writing results)")
                 sys.stdout.flush()
                 Repo.write_update(repos)
 
@@ -111,6 +113,9 @@ def main():
 
     if args.calc == ['all']:
         args.calc = all_features.keys()
+
+    if args.overwrite == ['all']:
+        args.overwrite = all_features.keys()
 
     calculate(args.calc, args.overwrite, args.console, not args.nodownload)
 

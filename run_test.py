@@ -1,7 +1,8 @@
 """This script handles training and evaluation."""
 
 import functools
-from itertools import combinations, chain
+from itertools import combinations, chain, product
+from time import time
 
 import numpy as np
 from sklearn import metrics
@@ -14,13 +15,15 @@ from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn.svm import LinearSVC
 import sklearn.decomposition
 
+# from sklearn.linear_model import RidgeClassifier, Perceptron, PassiveAggressiveClassifier
+
 import classes
 from features import all_features
 from models import Repo
 import utils
 
 NGRAM_MIN = 1
-NGRAM_MAX = 3  # not inclusive
+NGRAM_MAX = 2  # not inclusive
 
 sorted_stdlib_names = sorted(list(utils.stdlib_module_names()))
 
@@ -35,7 +38,7 @@ def ngrams(mods):
 
 def get_classifier():
     return RandomForestClassifier(
-        n_estimators=200,
+        n_estimators=100,
         max_depth=None,
         min_samples_split=1,
         max_features=None,
@@ -91,6 +94,36 @@ def select_by_pca(X, y):
     return sklearn.decomposition.RandomizedPCA(n_components=15).fit_transform(X, y)
 
 
+def summarize(a, funcs):
+    result = [f(a, axis=0) for f in funcs]
+    return np.array(result)
+
+
+def benchmark(clf, X, y, feature_names):
+    """Run a classification task and output performance information."""
+    clf.fit(X, y)
+
+    scores = cross_val_score(clf, X, y, cv=5,
+                             score_func=metrics.precision_recall_fscore_support)
+
+    labels = product(classes.classes, 'prec recall fscore support'.split())
+    print labels
+    print scores
+
+    print 'summary:'
+    funcs = (np.median, np.min, np.max, np.average, np.std)
+    summaries = summarize(scores, funcs).transpose().reshape(8, 5)
+
+    import code
+    code.interact(local=locals())
+
+    for (label, summary) in zip(labels, summaries):
+        print label
+        print [f.__name__ for f in funcs]
+        print summary
+        print
+
+
 def classify(X, y, id_to_class, vec):
     """Run the given classification task."""
     clf = get_classifier()
@@ -101,9 +134,8 @@ def classify(X, y, id_to_class, vec):
                                  score_func=metrics.confusion_matrix, cv=5)
     confusion = np.apply_over_axes(np.sum, confusions, [0, 0])[0]
 
-    importances = clf.feature_importances_
-
-    if X.shape[1] > 1:
+    if hasattr(clf, 'feature_importances_') and X.shape[1] > 1:
+        importances = clf.feature_importances_
         print 'number of samples:', len(X)
         print
         print
@@ -124,8 +156,51 @@ def classify(X, y, id_to_class, vec):
             print name, val
 
     print
-    print scores[0]
+    print scores
     print confusion
+
+
+# def benchmark(clf, X, y):
+#     print 80 * '_'
+#     print "Training: "
+#     print clf
+#     t0 = time()
+#     clf.fit(X_train, y_train)
+#     train_time = time() - t0
+#     print "train time: %0.3fs" % train_time
+#
+#     t0 = time()
+#     pred = clf.predict(X_test)
+#     test_time = time() - t0
+#     print "test time:  %0.3fs" % test_time
+#
+#     score = metrics.f1_score(y_test, pred)
+#     print "f1-score:   %0.3f" % score
+#
+#     if hasattr(clf, 'coef_'):
+#         print "dimensionality: %d" % clf.coef_.shape[1]
+#         print "density: %f" % density(clf.coef_)
+#
+#         if opts.print_top10 and feature_names is not None:
+#             print "top 10 keywords per class:"
+#             for i, category in enumerate(categories):
+#                 top10 = np.argsort(clf.coef_[i])[-10:]
+#                 print trim("%s: %s" % (
+#                     category, " ".join(feature_names[top10])))
+#         print
+#
+#     if opts.print_report:
+#         print "classification report:"
+#         print metrics.classification_report(y_test, pred,
+#                                             target_names=categories)
+#
+#     if opts.print_cm:
+#         print "confusion matrix:"
+#         print metrics.confusion_matrix(y_test, pred)
+#
+#     print
+#     clf_descr = str(clf).split('(')[0]
+#     return clf_descr, score, train_time, test_time
 
 
 def _run(repos, features):
@@ -139,12 +214,12 @@ def _run(repos, features):
     y = np.array([class_to_id[classes.classify(r)] for r in repos])
 
     # all features except imports are numerical;
-    # imports is transformed into n_modules discrete features
+    # imports become one-hot boolean ngrams
     use_imports = False
     if 'imported_stdlib_modules' in features:
         use_imports = True
-        mod_feature_dict = {_mod_feature_name(mods): False
-                            for mods in ngrams(sorted_stdlib_names)}
+        # mod_feature_dict = {_mod_feature_name(mods): False
+        #                     for mods in ngrams(sorted_stdlib_names)}
         features = [f for f in features if f != 'imported_stdlib_modules']
 
     dict_repos = []
@@ -152,7 +227,7 @@ def _run(repos, features):
         d = {}
 
         if use_imports:
-            d = mod_feature_dict.copy()
+            # d = mod_feature_dict.copy()
 
             for mods in ngrams(sorted(r.imported_stdlib_modules)):
                 d[_mod_feature_name(mods)] = True
@@ -164,10 +239,12 @@ def _run(repos, features):
 
     vec = DictVectorizer()
     X = vec.fit_transform(dict_repos)
-    X = X.todense()
+    #X = X.todense()
 
-    classify(X, y, id_to_class, vec)
-    classify(select_by_pca(X, y), y, id_to_class, vec)
+    benchmark(get_classifier(), X.toarray(), y, vec.get_feature_names())
+
+    #classify(X, y, id_to_class, vec)
+    # classify(select_by_pca(X, y), y, id_to_class, vec)
 
 
 if __name__ == '__main__':

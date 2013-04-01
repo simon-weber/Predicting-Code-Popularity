@@ -99,28 +99,28 @@ def summarize(a, funcs):
     return np.array(result)
 
 
-def benchmark(clf, X, y, feature_names):
+def format_summary(a):
+    """a is a vector of (median, min, max, std)."""
+    return "{0:<6.3g} {3:<6.3g}  ({1:.3g} - {2:.3g})".format(*a)
+
+
+def benchmark(clf, X, y, feature_names, cv_runs=5):
     """Run a classification task and output performance information."""
     clf.fit(X, y)
 
-    scores = cross_val_score(clf, X, y, cv=5,
+    scores = cross_val_score(clf, X, y, cv=cv_runs,
                              score_func=metrics.precision_recall_fscore_support)
 
     labels = product(classes.classes, 'prec recall fscore support'.split())
-    print labels
-    print scores
 
-    print 'summary:'
-    funcs = (np.median, np.min, np.max, np.average, np.std)
-    summaries = summarize(scores, funcs).transpose().reshape(8, 5)
+    print "over %s runs:" % cv_runs
 
-    import code
-    code.interact(local=locals())
+    funcs = (np.median, np.min, np.max, np.std)
+    summaries = summarize(scores, funcs).transpose().reshape(8, len(funcs))
 
     for (label, summary) in zip(labels, summaries):
-        print label
-        print [f.__name__ for f in funcs]
-        print summary
+        print '/'.join(label)
+        print (' ' * 13) + format_summary(summary)
         print
 
 

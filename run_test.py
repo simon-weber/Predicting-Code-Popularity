@@ -2,20 +2,24 @@
 
 import functools
 from itertools import combinations, chain, product
-from time import time
 
 import numpy as np
 from sklearn import metrics
 from sklearn.cross_validation import cross_val_score
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.feature_extraction import DictVectorizer
 import sklearn.feature_selection
 from sklearn.feature_selection import RFECV
 from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn.svm import LinearSVC
+from sklearn import svm
 import sklearn.decomposition
 
-# from sklearn.linear_model import RidgeClassifier, Perceptron, PassiveAggressiveClassifier
+from sklearn.linear_model import RidgeClassifier, Perceptron, PassiveAggressiveClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import SGDClassifier
+from sklearn.naive_bayes import BernoulliNB, MultinomialNB
+from sklearn.neighbors import NearestCentroid
 
 import classes
 from features import all_features
@@ -36,7 +40,7 @@ def ngrams(mods):
     return chain(*iters)
 
 
-def get_classifier():
+def RandomForest():
     return RandomForestClassifier(
         n_estimators=100,
         max_depth=None,
@@ -123,25 +127,14 @@ def benchmark(clf, X, y, feature_names, cv_runs=5):
         print (' ' * 13) + format_summary(summary)
         print
 
-
-def classify(X, y, id_to_class, vec):
-    """Run the given classification task."""
-    clf = get_classifier()
-    clf.fit(X, y)
-
-    scores = cross_val_score(clf, X, y, score_func=_score_func(id_to_class), cv=5)
-    confusions = cross_val_score(clf, X, y,
-                                 score_func=metrics.confusion_matrix, cv=5)
-    confusion = np.apply_over_axes(np.sum, confusions, [0, 0])[0]
-
     if hasattr(clf, 'feature_importances_') and X.shape[1] > 1:
         importances = clf.feature_importances_
         print 'number of samples:', len(X)
         print
         print
         print "Feature ranking:"
-        f_ranks = np.argsort(importances)[::-1]
-        id_to_feature = vec.get_feature_names()
+        f_ranks = np.argsort(importances)[-20:][::-1]
+        id_to_feature = feature_names
 
         col_offset = max(len(f) for f in id_to_feature) + 1
 
@@ -155,9 +148,48 @@ def classify(X, y, id_to_class, vec):
             val = "%f" % val
             print name, val
 
-    print
-    print scores
-    print confusion
+    # elif hasattr(clf, 'coef_') and X.shape[1] > 1:
+    #     for i, category in enumerate(classes.classes.keys()):
+    #         top = np.argsort(clf.coef_[i])[-20:]
+    #         print(trim("%s: %s"
+    #               % (category, " ".join(feature_names[top]))))
+
+
+#def classify(X, y, id_to_class, vec):
+#    """Run the given classification task."""
+#    clf = get_classifier()
+#    clf.fit(X, y)
+#
+#    scores = cross_val_score(clf, X, y, score_func=_score_func(id_to_class), cv=5)
+#    confusions = cross_val_score(clf, X, y,
+#                                 score_func=metrics.confusion_matrix, cv=5)
+#    confusion = np.apply_over_axes(np.sum, confusions, [0, 0])[0]
+#
+#    if hasattr(clf, 'feature_importances_') and X.shape[1] > 1:
+#        importances = clf.feature_importances_
+#        print 'number of samples:', len(X)
+#        print
+#        print
+#        print "Feature ranking:"
+#        f_ranks = np.argsort(importances)[-20:]
+#        id_to_feature = vec.get_feature_names()
+#
+#        col_offset = max(len(f) for f in id_to_feature) + 1
+#
+#        for fid in f_ranks:
+#            name = id_to_feature[fid].ljust(col_offset)
+#            val = importances[fid]
+#
+#            if val == 0:
+#                continue
+#
+#            val = "%f" % val
+#            print name, val
+#
+#
+#    print
+#    print scores
+#    print confusion
 
 
 # def benchmark(clf, X, y):
@@ -229,7 +261,13 @@ def _run(repos, features):
         if use_imports:
             # d = mod_feature_dict.copy()
 
-            for mods in ngrams(sorted(r.imported_stdlib_modules)):
+            mods = [m for m in r.imported_stdlib_modules if m in
+                    set(['hashlib', '__future__', 'functools', 'threading', 'warnings', 'base64',
+                         'traceback', 'socket', 'urlparse', 'subprocess', 'tempfile', 'json',
+                         'unittest', 'errno', 'StringIO', 're', 'glob', 'signal', 'inspect',
+                         'operator'])]
+
+            for mods in ngrams(mods):
                 d[_mod_feature_name(mods)] = True
 
         for fname in features:
@@ -241,7 +279,40 @@ def _run(repos, features):
     X = vec.fit_transform(dict_repos)
     #X = X.todense()
 
-    benchmark(get_classifier(), X.toarray(), y, vec.get_feature_names())
+    feature_names = vec.get_feature_names()
+
+    dense_X = X.toarray()
+
+    print 'random forest'
+    benchmark(RandomForest(), dense_X, y, feature_names)
+
+    print 'AdaBoost'
+    benchmark(AdaBoostClassifier(n_estimators=100), dense_X, y, feature_names)
+
+    #print 'ridge'
+    #benchmark(RidgeClassifier(tol=1e-2, solver="lsqr"), X, y, feature_names)
+
+    #print 'NN'
+    #benchmark(Perceptron(n_iter=50), X, y, feature_names)
+
+    #print 'passive aggressive'
+    #benchmark(PassiveAggressiveClassifier(n_iter=50), X, y, feature_names)
+
+    #print 'kNN'
+    #benchmark(KNeighborsClassifier(n_neighbors=10), X, y, feature_names)
+
+    #print 'SGD'
+    #benchmark(SGDClassifier(n_jobs=-1, alpha=.0001, n_iter=np.ceil(10**3), penalty="elasticnet", shuffle=True),
+    #          X, y, feature_names)
+
+    #print 'nearest centroid'
+    #benchmark(NearestCentroid(), X, y, feature_names)
+
+    #print 'naive bayes'
+    #benchmark(MultinomialNB(alpha=.01), X, y, feature_names)
+
+    #print 'naive bayes (bernoulli)'
+    #benchmark(BernoulliNB(alpha=.01), X, y, feature_names)
 
     #classify(X, y, id_to_class, vec)
     # classify(select_by_pca(X, y), y, id_to_class, vec)

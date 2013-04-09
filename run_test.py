@@ -6,7 +6,7 @@ from itertools import combinations, chain, product
 import numpy as np
 from sklearn import metrics
 from sklearn.cross_validation import cross_val_score
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction import DictVectorizer
 import sklearn.feature_selection
 from sklearn.feature_selection import RFECV
@@ -21,6 +21,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.naive_bayes import BernoulliNB, MultinomialNB
 from sklearn.neighbors import NearestCentroid
 
+from bagging import AsymBaggingRFCs
 import classes
 from features import all_features
 from models import Repo
@@ -283,11 +284,24 @@ def _run(repos, features):
 
     dense_X = X.toarray()
 
-    print 'random forest'
-    benchmark(RandomForest(), dense_X, y, feature_names)
+    # print 'RFC'
+    # benchmark(RandomForest(), dense_X, y, feature_names)
 
-    print 'AdaBoost'
-    benchmark(AdaBoostClassifier(n_estimators=100), dense_X, y, feature_names)
+    print 'asym bagging RF'
+    benchmark(AsymBaggingRFCs(5,
+                              n_estimators=100,
+                              max_depth=None,
+                              min_samples_split=1,
+                              max_features=None,
+                              #random_state=0,  # random seed is static for comparison
+                              compute_importances=True,
+                              n_jobs=-1,  # run on all cores
+                              ),
+              dense_X, y, feature_names
+              )
+
+    # print 'AdaBoost'
+    # benchmark(AdaBoostClassifier(n_estimators=100), dense_X, y, feature_names)
 
     #print 'ridge'
     #benchmark(RidgeClassifier(tol=1e-2, solver="lsqr"), X, y, feature_names)

@@ -12,7 +12,7 @@ import classes
 from models import Repo
 
 sample_sizes = {'high': 260,
-                'low': 260,
+                'low': 1000,
                 }
 
 
@@ -27,11 +27,11 @@ def populate_classes():
     print
 
     filtered = [r for r in repos if
-                30720 > r.size > 0 and
+                30720 > r.size > 0 and  # not foolproof to avoid big repos
                 r.stars > 1 and
                 not r.fork and
-                not 'dotfile' in r.name and
-                not 'sublime' in r.name  # avoid SublimeText config
+                not 'dotfile' in r.name.lower() and
+                not 'sublime' in r.name.lower()  # avoid SublimeText config
                 ]
     print 'after noise filter:', len(filtered)
 

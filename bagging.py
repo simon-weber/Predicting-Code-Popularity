@@ -22,30 +22,6 @@ def get_asym_task(X, y):
     return X_small, X_large, y_new
 
 
-class BalanceForcedDecisionTreeClassifier(DecisionTreeClassifier):
-    def fit(self, X, y,
-            sample_mask=None, X_argsorted=None,
-            check_input=True, sample_weight=None):
-
-        if X_argsorted is not None:
-            print 'unsupported: X_argsorted is not None'
-
-        X_small, X_large, y_new = get_asym_task(X, y)
-
-        large_subset = np.array(random.sample(X_large, len(X_small)))
-        X_new = np.vstack((X_small, large_subset))
-
-        # shuffle data
-        zipped = zip(X_new, y_new)
-        random.shuffle(zipped)
-        X_new, y_new = zip(*zipped)
-
-        return super(BalanceForcedDecisionTreeClassifier, self).fit(
-            X_new, y_new,
-            sample_mask, X_argsorted,
-            check_input, sample_weight)
-
-
 class BalanceForcedRandomForestClassifier(ForestClassifier):
     def __init__(self,
                  n_estimators=10,
@@ -62,7 +38,7 @@ class BalanceForcedRandomForestClassifier(ForestClassifier):
                  random_state=None,
                  verbose=0):
         super(BalanceForcedRandomForestClassifier, self).__init__(
-            base_estimator=BalanceForcedDecisionTreeClassifier(),
+            base_estimator=DecisionTreeClassifier(),
             n_estimators=n_estimators,
             estimator_params=("criterion", "max_depth", "min_samples_split",
                               "min_samples_leaf", "min_density",
@@ -80,6 +56,35 @@ class BalanceForcedRandomForestClassifier(ForestClassifier):
         self.min_samples_leaf = min_samples_leaf
         self.min_density = min_density
         self.max_features = max_features
+
+    def fit(self, X, y, sample_weight=None):
+        if sample_weight is not None:
+            # undersampling will force balance
+            sample_weight = None
+
+        X_small, X_large, y_new = get_asym_task(X, y)
+
+        large_subset = np.array(random.sample(X_large, len(X_small)))
+        X_new = np.vstack((X_small, large_subset))
+
+        # shuffle data
+        zipped = zip(X_new, y_new)
+        random.shuffle(zipped)
+        X_new, y_new = zip(*zipped)
+
+        #print "fit %s on (%s, %s) from (%s, %s)" % (
+        #    id(self),
+        #    len(X_new), len(y_new),
+        #    len(X), len(y)
+        #)
+        #print "kept: %s/%s | %s/%s" % (
+        #    len(X_small), len(X_small),
+        #    len(large_subset), len(X_large)
+        #)
+
+        return super(BalanceForcedRandomForestClassifier, self).fit(
+            X_new, y_new,
+            sample_weight)
 
 
 class AsymBaggingRFCs(BaseEnsemble):
@@ -129,10 +134,13 @@ class AsymBaggingRFCs(BaseEnsemble):
         self.random_state = random_state
 
         # hack to make us look like a classifier
+        # this tells CV to use stratified shuffles
         self.estimator = RandomForestClassifier()
 
-    def fit(self, X, y):
-        # remove from clone
+    def fit(self, X, y, sample_weight=None):
+        # sample weight is ignored - it'll be forced uniform
+
+        # clear a clone
         self.estimators_ = []
 
         for i in range(self.asym_estimators):
@@ -141,9 +149,9 @@ class AsymBaggingRFCs(BaseEnsemble):
         for clf in self.estimators_:
             clf.fit(X, y)
 
-    def predict_proba(self, X):
-        #return self.estimators_[0].predict_proba(X)
+        return self
 
+    def predict_proba(self, X):
         all_proba = [clf.predict_proba(X) for clf in self.estimators_]
 
         # reduce by average
@@ -159,8 +167,6 @@ class AsymBaggingRFCs(BaseEnsemble):
         return proba
 
     def predict(self, X):
-        #return self.estimators_[0].predict(X)
-
         proba = self.predict_proba(X)
 
         return np.array([max(enumerate(a),

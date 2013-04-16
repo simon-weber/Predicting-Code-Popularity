@@ -10,6 +10,7 @@ from sklearn.cross_validation import cross_val_score
 import sklearn.cross_validation
 from sklearn.ensemble import (
     RandomForestClassifier, GradientBoostingClassifier,
+    AdaBoostClassifier
 )
 from sklearn.feature_extraction import DictVectorizer
 import sklearn.feature_selection
@@ -18,6 +19,7 @@ from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn.svm import LinearSVC
 from sklearn import svm
 import sklearn.decomposition
+from sklearn.preprocessing import balance_weights
 
 #from sklearn.linear_model import RidgeClassifier, Perceptron, PassiveAggressiveClassifier
 #from sklearn.neighbors import KNeighborsClassifier
@@ -50,7 +52,7 @@ def ngrams(mods):
 
 def RandomForest():
     return RandomForestClassifier(
-        n_estimators=100,
+        n_estimators=200,
         max_depth=None,
         min_samples_split=1,
         max_features=None,
@@ -291,9 +293,9 @@ def _run(repos, features):
     dense_X = X.toarray()
 
     # model search
-    # X_train, X_test, y_train, y_test = sklearn.cross_validation.train_test_split(
-    #     dense_X, y, test_size=0.33
-    # )
+    X_train, X_test, y_train, y_test = sklearn.cross_validation.train_test_split(
+        dense_X, y, test_size=0.3
+    )
 
     # rfc_grid = [
     #     {'max_features': [None, 'sqrt', 'log2'],
@@ -367,17 +369,36 @@ def _run(repos, features):
     #              test_size=size
     #          ))
 
-    print 'RFC subset'
-    X_small, X_large, y_new = get_asym_task(dense_X, y)
-    large_subset = np.array(random.sample(X_large, len(X_small)))
-    X_new = np.vstack((X_small, large_subset))
+    def _attempt(clf, X_train, y_train, X_test, y_test, weighted=True):
+        weights = None
+        if weighted:
+            weights = balance_weights(y_train)
 
-    benchmark(RandomForest(), X_new, y_new, feature_names)
+        clf.fit(X_train, y_train, sample_weight=weights)
 
+        pred = clf.predict(X_test)
+        print metrics.classification_report(y_test, pred, target_names=['high', 'low'])
 
-    print 'asym bagging RF'
+    def attempt(clf, X_train, y_train, X_test, y_test):
+        print clf
+        print 'weighted:'
+        _attempt(clf, X_train, y_train, X_test, y_test)
+        #print
+        #print 'unweighted:'
+        #_attempt(clf, X_train, y_train, X_test, y_test, False)
+        print
+        print
+
+    rfc = RandomForest()
+    attempt(rfc, X_train, y_train, X_test, y_test)
+
+    ada = AdaBoostClassifier(n_estimators=300)
+    attempt(ada, X_train, y_train, X_test, y_test)
+
+    #benchmark(RandomForest(), X_new, y_new, feature_names)
+
     asym = AsymBaggingRFCs(7,
-                           n_estimators=100,
+                           n_estimators=200,
                            max_depth=None,
                            min_samples_split=1,
                            max_features=None,
@@ -385,8 +406,16 @@ def _run(repos, features):
                            compute_importances=True,
                            n_jobs=-1,  # run on all cores
                            )
+    attempt(asym, X_train, y_train, X_test, y_test)
 
-    benchmark(asym, dense_X, y, feature_names)
+    rfc_under = RandomForest()
+    X_utr_small, X_utr_large, y_utr = get_asym_task(X_train, y_train)
+
+    X_utr_large = np.array(random.sample(X_utr_large, len(X_utr_small)))
+    X_utr = np.vstack((X_utr_small, X_utr_large))
+    attempt(rfc_under, X_utr, y_utr, X_test, y_test)
+
+    #benchmark(asym, dense_X, y, feature_names)
 
     # print 'AdaBoost'
     # benchmark(AdaBoostClassifier(n_estimators=100), dense_X, y, feature_names)

@@ -2,11 +2,15 @@
 
 import functools
 from itertools import combinations, chain, product
+import random
 
 import numpy as np
 from sklearn import metrics
 from sklearn.cross_validation import cross_val_score
-from sklearn.ensemble import RandomForestClassifier
+import sklearn.cross_validation
+from sklearn.ensemble import (
+    RandomForestClassifier, GradientBoostingClassifier,
+)
 from sklearn.feature_extraction import DictVectorizer
 import sklearn.feature_selection
 from sklearn.feature_selection import RFECV
@@ -15,13 +19,16 @@ from sklearn.svm import LinearSVC
 from sklearn import svm
 import sklearn.decomposition
 
-from sklearn.linear_model import RidgeClassifier, Perceptron, PassiveAggressiveClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import SGDClassifier
-from sklearn.naive_bayes import BernoulliNB, MultinomialNB
-from sklearn.neighbors import NearestCentroid
+#from sklearn.linear_model import RidgeClassifier, Perceptron, PassiveAggressiveClassifier
+#from sklearn.neighbors import KNeighborsClassifier
+#from sklearn.linear_model import SGDClassifier
+#from sklearn.naive_bayes import BernoulliNB, MultinomialNB
+#from sklearn.neighbors import NearestCentroid
 
-from bagging import AsymBaggingRFCs
+from sklearn.grid_search import GridSearchCV
+
+
+from bagging import AsymBaggingRFCs, get_asym_task
 import classes
 from features import all_features
 from models import Repo
@@ -109,16 +116,15 @@ def format_summary(a):
     return "{0:<6.3g} {3:<6.3g}  ({1:.3g} - {2:.3g})".format(*a)
 
 
-def benchmark(clf, X, y, feature_names, cv_runs=5):
+def benchmark(clf, X, y, feature_names, cv=None):
     """Run a classification task and output performance information."""
-    clf.fit(X, y)
+    if cv is None:
+        cv = 5  # 5 runs, statified
 
-    scores = cross_val_score(clf, X, y, cv=cv_runs,
+    scores = cross_val_score(clf, X, y, cv=cv,
                              score_func=metrics.precision_recall_fscore_support)
 
     labels = product(classes.classes, 'prec recall fscore support'.split())
-
-    print "over %s runs:" % cv_runs
 
     funcs = (np.median, np.min, np.max, np.std)
     summaries = summarize(scores, funcs).transpose().reshape(8, len(funcs))
@@ -128,26 +134,26 @@ def benchmark(clf, X, y, feature_names, cv_runs=5):
         print (' ' * 13) + format_summary(summary)
         print
 
-    if hasattr(clf, 'feature_importances_') and X.shape[1] > 1:
-        importances = clf.feature_importances_
-        print 'number of samples:', len(X)
-        print
-        print
-        print "Feature ranking:"
-        f_ranks = np.argsort(importances)[-20:][::-1]
-        id_to_feature = feature_names
+    #if hasattr(clf, 'feature_importances_') and X.shape[1] > 1:
+    #    importances = clf.feature_importances_
+    #    print 'number of samples:', len(X)
+    #    print
+    #    print
+    #    print "Feature ranking:"
+    #    f_ranks = np.argsort(importances)[-20:][::-1]
+    #    id_to_feature = feature_names
 
-        col_offset = max(len(f) for f in id_to_feature) + 1
+    #    col_offset = max(len(f) for f in id_to_feature) + 1
 
-        for fid in f_ranks:
-            name = id_to_feature[fid].ljust(col_offset)
-            val = importances[fid]
+    #    for fid in f_ranks:
+    #        name = id_to_feature[fid].ljust(col_offset)
+    #        val = importances[fid]
 
-            if val == 0:
-                continue
+    #        if val == 0:
+    #            continue
 
-            val = "%f" % val
-            print name, val
+    #        val = "%f" % val
+    #        print name, val
 
     # elif hasattr(clf, 'coef_') and X.shape[1] > 1:
     #     for i, category in enumerate(classes.classes.keys()):
@@ -284,21 +290,103 @@ def _run(repos, features):
 
     dense_X = X.toarray()
 
-    # print 'RFC'
-    # benchmark(RandomForest(), dense_X, y, feature_names)
+    # model search
+    # X_train, X_test, y_train, y_test = sklearn.cross_validation.train_test_split(
+    #     dense_X, y, test_size=0.33
+    # )
+
+    # rfc_grid = [
+    #     {'max_features': [None, 'sqrt', 'log2'],
+    #      'criterion': ['entropy', 'gini'],
+    #      'n_estimators': [200, 500, 750],
+    #      'max_depth': [None],
+    #      'min_samples_split': [1, 2, 3, 5],
+    #      },
+    # ]
+
+    # cv_rfc = GridSearchCV(RandomForestClassifier(),
+    #                       rfc_grid, cv=3, verbose=1, n_jobs=-1).fit(X_train, y_train)
+
+    # ada_grid = [
+    #     {
+    #         'n_estimators': [200, 500, 750, 1000],
+    #         'algorithm': ['SAMME', 'SAMME.R']
+    #     },
+    # ]
+
+    # cv_ada = GridSearchCV(AdaBoostClassifier(
+    #     base_estimator=cv_rfc.best_estimator_.estimators_[0]),
+    #     ada_grid, cv=3, verbose=1, n_jobs=-1).fit(X_train, y_train)
+
+
+    # print 'RFC 5-fold stratified'
+    # rfc = RandomForest()
+    # rfc.fit(X_train, y_train)
+    # pred = rfc.predict(X_test)
+    # print metrics.precision_recall_fscore_support(y_test, pred)
+
+    # #benchmark(RandomForest(), dense_X, y, feature_names)
+
+    # print 'RFC found by:'
+    # print cv_rfc.best_estimator_
+    # rfc = cv_rfc.best_estimator_
+    # rfc.fit(X_train, y_train)
+    # pred = rfc.predict(X_test)
+    # print metrics.precision_recall_fscore_support(y_test, pred)
+
+    # print 'ABC found by:'
+    # print cv_ada.best_estimator_
+    # rfc = cv_ada.best_estimator_
+    # rfc.fit(X_train, y_train)
+    # pred = rfc.predict(X_test)
+    # print metrics.precision_recall_fscore_support(y_test, pred)
+
+    #print 'Gradient boost'
+    #benchmark(GradientBoostingClassifier(n_estimators=300,
+    #                                     max_depth=5,
+    #                                     min_samples_split=1,
+    #                                     max_features=None,
+    #                                     ),
+    #          dense_X, y, feature_names)
+
+
+    #size = .3
+    #print '5-fold strat %s' % size
+    #cv = sklearn.cross_validation.StratifiedShuffleSplit(
+    #    y,
+    #    n_iter=5,
+    #    test_size=size
+    #)
+
+    #size = .5
+    #print '5-fold strat %s' % size
+    #benchmark(RandomForest(), dense_X, y, feature_names,
+    #          cv=sklearn.cross_validation.StratifiedShuffleSplit(
+    #              y,
+    #              n_iter=5,
+    #              test_size=size
+    #          ))
+
+    print 'RFC subset'
+    X_small, X_large, y_new = get_asym_task(dense_X, y)
+    large_subset = np.array(random.sample(X_large, len(X_small)))
+    X_new = np.vstack((X_small, large_subset))
+
+    benchmark(RandomForest(), X_new, y_new, feature_names)
+
 
     print 'asym bagging RF'
-    benchmark(AsymBaggingRFCs(5,
-                              n_estimators=100,
-                              max_depth=None,
-                              min_samples_split=1,
-                              max_features=None,
-                              #random_state=0,  # random seed is static for comparison
-                              compute_importances=True,
-                              n_jobs=-1,  # run on all cores
-                              ),
-              dense_X, y, feature_names
-              )
+    asym = AsymBaggingRFCs(7,
+                           n_estimators=100,
+                           max_depth=None,
+                           min_samples_split=1,
+                           max_features=None,
+                           #random_state=0,  # random seed is static for comparison
+                           compute_importances=True,
+                           n_jobs=-1,  # run on all cores
+                           )
+
+    benchmark(asym, dense_X, y, feature_names)
 
     # print 'AdaBoost'
     # benchmark(AdaBoostClassifier(n_estimators=100), dense_X, y, feature_names)

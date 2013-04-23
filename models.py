@@ -229,9 +229,12 @@ class Repo(_Repo):
                 self._calc(f, overwrite)
 
     @classmethod
-    def load_sample(cls, sample_path=None):
+    def load_sample(cls, sample_path=None, separate=False):
         """Load only repos in the given sample.
-        If None, assume '<current_snapshot>/<current_sample>'"""
+        If sample_path is None, assume '<current_snapshot>/<current_sample>'.
+
+        If separate is true, return a dict mapping class name to repo lists."""
+
         repos = cls.load()
 
         # memoize for probable write_update
@@ -241,9 +244,18 @@ class Repo(_Repo):
             sample_path = os.path.join(config['current_snapshot'], config['current_sample'])
 
         with open(sample_path, 'rb') as f:
-            repos_in_sample = set(json.load(f))
+            separated_names = json.load(f)
+            assert isinstance(separated_names, dict), 'did you try to load an old flat sample?'
 
-        return [r for r in repos if r.name in repos_in_sample]
+        if separate:
+            return {clsname: [r for r in repos if r.name in set(names)]
+                    for (clsname, names) in separated_names.items()}
+        else:
+            nameset = set()
+            for names in separated_names.values():
+                nameset.update(set(names))
+
+            return [r for r in repos if r.name in nameset]
 
     @classmethod
     def write_update(cls, records, filepath=None):

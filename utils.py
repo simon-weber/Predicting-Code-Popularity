@@ -10,6 +10,8 @@ import tarfile
 from tempfile import NamedTemporaryFile
 import urllib  # I'm as surprised as you are, this was easiest
 
+import envoy
+
 from config import config
 #from sample import repos
 
@@ -76,6 +78,50 @@ def format_bytes(num):
             return "%3.1f%s" % (num, x)
         num /= 1024.0
     return "%3.1f%s" % (num, 'TB')
+
+
+def clone(repo):
+    """Return true value if the repo is cloned and ready.
+
+    True: downloaded successfully
+    1: already downloaded
+    False: error while downloading
+    """
+    logging.info("clone: %s", repo)
+
+    user, reponame = repo.name.split('/')
+
+    result_path = os.path.join(config['current_snapshot'], 'code', user, reponame)
+    if os.path.exists(result_path):
+        logging.info("already cloned")
+        return 1
+
+    clone_url = "git://github.com/{user}/{repo}.git".format(user=user, repo=reponame)
+    success = False
+    attempts = 0
+
+    while not success and attempts < 3:
+
+        try:
+            r = envoy.run("git clone {url} {dest}".format(
+                url=clone_url,
+                dest=result_path))
+            if r.status_code != 0:
+                raise Exception("stdout: %s\nstderr: %s" % (r.std_out, r.std_err))
+
+        except:
+            logging.exception('problem during clone')
+        else:
+            success = True
+        finally:
+            attempts += 1
+
+    if not success:
+        logging.error("could not clone %s", repo)
+    else:
+        logging.info('cloned %s', repo)
+
+    return success
 
 
 def download(repo):

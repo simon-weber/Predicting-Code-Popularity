@@ -45,7 +45,7 @@ def calculate(f_to_calc, f_to_overwrite, console, download):
             success = True
 
             if download:
-                success = utils.download(repo)
+                success = utils.clone(repo)
 
             if not success:
                 dl_failures.append(repo)

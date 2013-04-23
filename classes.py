@@ -5,7 +5,8 @@ cutoff = .5
 
 
 def score(repo):
-    stars_per_day = float(repo.stars) / (datetime.now() - repo.creation_date).days
+    stars_per_day = float(repo.stars) / (datetime(*repo.fetch_ymd)
+                                         - repo.creation_date).days
     return stars_per_day
 
 

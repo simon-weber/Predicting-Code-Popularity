@@ -16,7 +16,9 @@ sample_sizes = {'high': 260,
                 }
 
 
-def populate_classes():
+def get_samples():
+    """Return a {'class': [reponames]}."""
+
     repos = Repo.load()
     fetch_dates = [datetime.datetime(*(r.fetch_ymd)) for r in repos]
 
@@ -47,34 +49,32 @@ def populate_classes():
                 ]
     print 'exluding very unpopular:', len(filtered)
 
-    class_map = defaultdict(list)
-    for r in filtered:
-        class_map[classes.classify(r)].append(r)
+    score_pairs = [(classes.score(r), r) for r in filtered]
+    score_pairs.sort(key=lambda x: x[0])
 
-    return class_map
+    # top 1k, bottom 1k.
+    return {'high': [r.name for (score, r) in score_pairs[-1000:]],
+            'low': [r.name for (score, r) in score_pairs[:1000]],
+            }
+
+#def get_samples(class_map):
+#    sample_map = defaultdict(list)
+#
+#    # take the top of top, bottom of bottom
+#    select_map = {'high': lambda repos, k: sorted(repos, reverse=True)[:k],
+#                  'low': lambda repos, k: sorted(repos)[:k]}
+#
+#    for cls_name, num_samples in sample_sizes.items():
+#        repos_in_class = class_map[cls_name]
+#        select = select_map[cls_name]
+#
+#        print "%s: get %s/%s" % (cls_name, num_samples, len(repos_in_class))
+#        sample_map[cls_name].extend(select(repos_in_class, num_samples))
+#
+#    return sample_map
 
 
-def get_samples(class_map):
-    sample_map = defaultdict(list)
-
-    # take the top of top, bottom of bottom
-    select_map = {'high': lambda repos, k: sorted(repos, reverse=True)[:k],
-                  'low': lambda repos, k: sorted(repos)[:k]}
-
-    for cls_name, num_samples in sample_sizes.items():
-        repos_in_class = class_map[cls_name]
-        select = select_map[cls_name]
-
-        print "%s: get %s/%s" % (cls_name, num_samples, len(repos_in_class))
-        sample_map[cls_name].extend(select(repos_in_class, num_samples))
-
-    return sample_map
-
-
-def write_samples(samples):
-    # sample is just a list of names now
-    output = [r.name for c in samples.values() for r in c]
-
+def write_samples(output):
     sample_path = os.path.join(config['current_snapshot'], config['current_sample'])
 
     with open(sample_path, 'wb') as f:
@@ -82,13 +82,11 @@ def write_samples(samples):
 
 
 if __name__ == '__main__':
-    class_map = populate_classes()
-    print
-    samples = get_samples(class_map)
+    samples = get_samples()
     print
     write_samples(samples)
 
     print 'to write:'
     for cls, sample in samples.items():
         print "%s: %s  (eg %s)" % (cls, len(sample),
-                                   [r.name for r in (random.sample(sample, 10))])
+                                   [name for name in (random.sample(sample, 10))])

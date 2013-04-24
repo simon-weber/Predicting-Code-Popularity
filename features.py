@@ -88,13 +88,13 @@ def num_src_files(repo):
 @feature
 def ratio_src_files(repo):
     """.py files / all files"""
-    return 100.0 * repo._calc('num_src_files') / repo._calc('num_all_files')
+    return 100.0 * repo._calc('num_src_files') / (1 + repo._calc('num_all_files'))
 
 
 @feature
 def ratio_vol_src_files(repo):
     """size of .py files / size of all files"""
-    return 100.0 * repo._calc('size_src_files') / repo._calc('size_all_files')
+    return 100.0 * repo._calc('size_src_files') / (1 + repo._calc('size_all_files'))
 
 
 @feature

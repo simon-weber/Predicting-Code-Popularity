@@ -37,6 +37,7 @@ def calculate(f_to_calc, f_to_overwrite, console, download):
     seen = 0
     total = len(repos)
     dl_failures = []
+    calc_failures = []
     last_write = datetime.datetime.now()
 
     if f_to_calc or f_to_overwrite or download:
@@ -51,13 +52,21 @@ def calculate(f_to_calc, f_to_overwrite, console, download):
                 dl_failures.append(repo)
                 continue
 
-            if f_to_calc:
-                repo.calculate_features(f_to_calc)
+            try:
+                if f_to_calc:
+                    logging.info("calc: %s", repo)
+                    repo.calculate_features(f_to_calc)
 
-            if f_to_overwrite:
-                repo.calculate_features(f_to_overwrite, overwrite=True)
+                if f_to_overwrite:
+                    logging.info("calc: %s", repo)
+                    repo.calculate_features(f_to_overwrite, overwrite=True)
 
-            repo._clear_support_features()  # we're done with this repo now
+                repo._clear_support_features()  # we're done with this repo now
+            except:
+                print  # from status line
+                logging.exception("!problem: %s", repo)
+                calc_failures.append(repo)
+                print
 
             progress_bar(seen, total)
 
@@ -75,6 +84,12 @@ def calculate(f_to_calc, f_to_overwrite, console, download):
     if dl_failures:
         print "%s failed to download:" % len(dl_failures)
         for f in dl_failures:
+            print "  %s" % f
+        print
+
+    if calc_failures:
+        print "%s failed during calc:" % len(calc_failures)
+        for f in calc_failures:
             print "  %s" % f
         print
 

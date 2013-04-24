@@ -383,9 +383,13 @@ def _run(repos, features):
         print clf
         print 'weighted:'
         _attempt(clf, X_train, y_train, X_test, y_test)
-        #print
-        #print 'unweighted:'
-        #_attempt(clf, X_train, y_train, X_test, y_test, False)
+
+        print
+        print 'weighted with undersampled test set:'
+        X_u_small, X_u_large, y_u = get_asym_task(X_test, y_test)
+        X_u_large = np.array(random.sample(X_u_large, len(X_u_small)))
+        X_u = np.vstack((X_u_small, X_u_large))
+        _attempt(clf, X_train, y_train, X_u, y_u, False)
         print
         print
 
@@ -397,7 +401,7 @@ def _run(repos, features):
 
     #benchmark(RandomForest(), X_new, y_new, feature_names)
 
-    asym = AsymBaggingRFCs(7,
+    asym = AsymBaggingRFCs(13,
                            n_estimators=200,
                            max_depth=None,
                            min_samples_split=1,
@@ -408,6 +412,9 @@ def _run(repos, features):
                            )
     attempt(asym, X_train, y_train, X_test, y_test)
 
+    print
+    print '============'
+    print 'with undersampled training data:'
     rfc_under = RandomForest()
     X_utr_small, X_utr_large, y_utr = get_asym_task(X_train, y_train)
 
@@ -415,8 +422,12 @@ def _run(repos, features):
     X_utr = np.vstack((X_utr_small, X_utr_large))
     attempt(rfc_under, X_utr, y_utr, X_test, y_test)
 
+    ada_under = AdaBoostClassifier(n_estimators=300)
+    attempt(ada_under, X_utr, y_utr, X_test, y_test)
+
     #benchmark(asym, dense_X, y, feature_names)
 
+    ## old benchmarks
     # print 'AdaBoost'
     # benchmark(AdaBoostClassifier(n_estimators=100), dense_X, y, feature_names)
 

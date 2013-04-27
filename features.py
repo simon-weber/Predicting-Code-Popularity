@@ -1,9 +1,6 @@
-"""This file contains the definition of the different features. It's not
-terribly elegant, since features grew in complexity as the project went on.
-Basically, each repo has a feature dictionary; it is passed to
-Feature._calculate, which writes its result in under the key for its name.
+"""This file contains the definition of the different features.
 
-There are also SupportOnlyFeatures, which are basically just used to memoize
+There are also support_features, which are basically just used to memoize
 intermediate work common to multiple features. They are not persisted, and are
 calculated lazily."""
 
@@ -20,6 +17,7 @@ import utils
 
 # {'feature name': Feature} for outside the module.
 # serialization assumes that features will not be removed once added
+# adding doesn't require a migration; on the next load its value will default to None
 all_features = {}
 
 _support_features = {}
@@ -37,6 +35,7 @@ def support_feature(f):
 
 #features take a Repo and return their value.
 #they assume cwd is the repo's directory
+#they can use other feature's (possibly memoized) values with repo._calc()
 
 
 @support_feature
@@ -215,40 +214,25 @@ def num_ast_nodes(repo):
 
 
 #These features refer to usage of certain language features.
-@feature
-def with_stmt_usage(repo):
-    nodes = repo._calc('ast_node_counts').get('With', 0)
-    return 100.0 * nodes / repo._calc('num_ast_nodes')
+#They are all measured as percentages of ast nodes.
 
+def make_ast_usage_feature(node_name, feature_name):
+    def feature_func(repo, node_name=node_name):
+        nodes = repo._calc('ast_node_counts').get(node_name, 0)
+        return 100.0 * nodes / repo._calc('num_ast_nodes')
 
-@feature
-def compr_usage(repo):
-    nodes = repo._calc('ast_node_counts').get('comprehension', 0)
-    return 100.0 * nodes / repo._calc('num_ast_nodes')
+    feature_func.__name__ = feature_name
+    feature_func = feature(feature_func)
+    return feature_func
 
-
-@feature
-def lambda_usage(repo):
-    nodes = repo._calc('ast_node_counts').get('Lambda', 0)
-    return 100.0 * nodes / repo._calc('num_ast_nodes')
-
-
-@feature
-def global_usage(repo):
-    nodes = repo._calc('ast_node_counts').get('Global', 0)
-    return 100.0 * nodes / repo._calc('num_ast_nodes')
-
-
-@feature
-def gen_exp_usage(repo):
-    nodes = repo._calc('ast_node_counts').get('GeneratorExp', 0)
-    return 100.0 * nodes / repo._calc('num_ast_nodes')
-
-
-@feature
-def print_usage(repo):
-    nodes = repo._calc('ast_node_counts').get('Print', 0)
-    return 100.0 * nodes / repo._calc('num_ast_nodes')
+for node_name, feature_name in [('With', 'with_stmt_usage'),
+                                ('comprehension', 'compr_usage'),
+                                ('Lambda', 'lambda_usage'),
+                                ('Global', 'global_usage'),
+                                ('GeneratorExp', 'gen_exp_usage'),
+                                ('Print', 'print_usage'),
+                                ]:
+    make_ast_usage_feature(node_name, feature_name)
 
 
 @feature

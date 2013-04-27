@@ -1,6 +1,7 @@
 """A script to compare the feature data collected."""
 
 from collections import defaultdict, Counter
+from functools import partial
 
 import numpy as np
 
@@ -82,8 +83,14 @@ def summarize_imports(class_map):
         output(deltas[:20])
 
 
-def summarize_features(class_map, feature_names, class_names,
-                       funcs=[np.amin, np.amax, np.median, np.mean, np.std]):
+percentiles = [partial(np.percentile, q=i) for i in (1, 25, 50, 75, 99)]
+default_funcs = [np.amin] + percentiles + [np.amax, np.mean, np.std]
+
+
+def summarize_features(class_map, feature_names, class_names, funcs=None):
+    if funcs is None:
+        funcs = default_funcs
+
     feature_summaries = {}  # eg 'ReadmeSize' -> np.array(num_classes, num_funcs)
 
     for feature_name in feature_names:
@@ -109,6 +116,12 @@ def summarize_features(class_map, feature_names, class_names,
 if __name__ == '__main__':
     class_map = Repo.load_sample(separate=True)
 
-    #summarize_features(class_map, ['readme_size'], sorted(classes))
+    summarize_features(class_map, ['with_stmt_usage',
+                                   'compr_usage',
+                                   'lambda_usage',
+                                   'global_usage',
+                                   'gen_exp_usage',
+                                   'print_usage',
+                                  ], sorted(classes))
 
-    summarize_imports(class_map)
+    #summarize_imports(class_map)

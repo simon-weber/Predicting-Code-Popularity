@@ -211,7 +211,9 @@ class Repo(_Repo):
         return d
 
     def _calc(self, feature_name, overwrite=False):
-        """Perform one-time calculation of a feature."""
+        """Perform one-time calculation of a feature.
+        If overwrite is True, a currently memoized value will be overwritten.
+        """
         #even though __getattribute__ is cleaner, sometimes you do want the value
         #without calculating (eg when writing out)
 

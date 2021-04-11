@@ -1,6 +1,8 @@
 #Predicting the Popularity of Code
 
-I'm currently working on extending this project by (hopefully) extracting more useful knowledge and improving accuracy. It's based on a final project of mine for a data mining course in Fall 2012. The original description is below:
+This repo contains code written for a final project I did for a data mining course in Fall 2012.
+This was eventually written into [a paper available in this repo](code_popularity.pdf) which my prof later reworked into [What Makes an Open Source Code Popular on GitHub?](https://ieeexplore.ieee.org/document/7022684).
+The original project description is below:
 
 - - -
 
